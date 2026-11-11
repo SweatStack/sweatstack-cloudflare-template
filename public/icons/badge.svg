@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<!-- App icon: a runner drawn with round-capped strokes on a 512 grid. Edit, then run `npm run icons`. -->
+
+<g transform="translate(-6 -10)">
+  <g fill="none" stroke="#FFFFFF" stroke-width="44" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M286 200 L242 312"/>
+    <path d="M286 200 L338 256 L392 226"/>
+    <path d="M286 200 L222 250 L176 222"/>
+    <path d="M242 312 L322 350 L300 428"/>
+    <path d="M242 312 L208 388 L130 372"/>
+  </g>
+  <circle cx="316" cy="124" r="42" fill="#FFFFFF"/>
+</g>
+</svg>
