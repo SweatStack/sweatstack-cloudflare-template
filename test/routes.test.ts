@@ -58,6 +58,11 @@ describe("signed out", () => {
     const { request } = testApp();
     const response = await request("/activities/demo-00");
     expect(response.headers.get("location")).toBe("/auth/login?next=%2Factivities%2Fdemo-00");
+    // A form posted after the session ended goes to sign-in too; JSON calls get a 401.
+    const post = await request("/settings/data-sources", form({ standalone: "0" }));
+    expect(post.status).toBe(303);
+    expect(post.headers.get("location")).toBe("/auth/login");
+    expect((await request("/push/test", json({}))).status).toBe(401);
   });
 
   it("tells htmx to do a full redirect instead of swapping in a login page", async () => {

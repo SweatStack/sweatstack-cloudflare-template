@@ -50,7 +50,8 @@ homeRoutes.get("/", async (c) => {
     <Dashboard
       latest={latest}
       weeks={weeklyTotals(recent, APP.trendWeeks)}
-      importing={isNewUser && stillImporting(backfill)}
+      // Only while some history has arrived: with no activities at all, the empty state explains what to do.
+      importing={isNewUser && latest !== null && stillImporting(backfill)}
       attribution={[...new Set(recent.map((a) => a.attribution).filter(Boolean))].join(", ")}
       c={c}
     />,

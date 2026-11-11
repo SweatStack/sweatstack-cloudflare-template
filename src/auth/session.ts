@@ -76,7 +76,9 @@ export const requireUser: MiddlewareHandler<AppEnv> = async (c, next) => {
     c.header("HX-Redirect", "/");
     return c.body(null, 401);
   }
-  if (c.req.method !== "GET") return c.text("Sign in first", 401);
+  if (c.req.header("content-type")?.includes("application/json")) return c.json({ error: "Sign in first" }, 401);
+  // A form posted after the session ended: sign in again, then land back on the page.
+  if (c.req.method !== "GET") return c.redirect("/auth/login", 303);
   const url = new URL(c.req.url);
   return c.redirect(`/auth/login?next=${encodeURIComponent(url.pathname + url.search)}`);
 };
