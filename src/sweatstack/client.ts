@@ -15,10 +15,13 @@ import type {
   ActivityDetails,
   ActivitySummary,
   BackfillStatus,
+  MetabolicMap,
   Metric,
   PortalDestination,
   Timeseries,
   UserInfo,
+  ZoneMetric,
+  ZonesResponse,
 } from "./types";
 
 export type GetToken = (options?: { forceRefresh?: boolean }) => Promise<string>;
@@ -74,7 +77,8 @@ export class SweatStackClient {
       accept: "application/vnd.apache.parquet, application/octet-stream",
     });
     const attribution = response.headers.get("SweatStack-Attribution");
-    const raw = await readColumns(await response.arrayBuffer(), ["timestamp", ...metrics]);
+    const segmented = options.segmentationOn !== undefined;
+    const raw = await readColumns(await response.arrayBuffer(), ["timestamp", ...(segmented ? ["duration"] : []), ...metrics]);
 
     const timestamps = (raw.timestamp ?? []).map(toMillis);
     const first = timestamps.find((t) => t !== null) ?? 0;
@@ -85,6 +89,8 @@ export class SweatStackClient {
     }
     return {
       elapsed: timestamps.map((t) => (t === null ? 0 : (t - first) / 1000)),
+      // Segment durations are served in whole seconds (a Parquet duration with unit "s").
+      durations: segmented ? (raw.duration ?? []).map((d) => toNumber(d) ?? 0) : null,
       columns,
       attribution,
     };
@@ -100,9 +106,20 @@ export class SweatStackClient {
     sport?: string[];
     start: string; // YYYY-MM-DD
     end?: string; // YYYY-MM-DD
+    /**
+     * AISC segments instead of samples (see getActivityData). Each row is then a segment, and `duration`
+     * is in whole seconds. Activities without segments for this metric are left out of the result.
+     */
+    segmentationOn?: "power" | "speed";
   }): Promise<{ columns: Record<string, unknown[]>; attribution: string | null }> {
     const response = await this.request("/api/v1/activities/longitudinal-data", {
-      query: { metrics: options.metrics, sport: options.sport, start: options.start, end: options.end },
+      query: {
+        metrics: options.metrics,
+        sport: options.sport,
+        start: options.start,
+        end: options.end,
+        segmentation_on: options.segmentationOn,
+      },
       accept: "application/vnd.apache.parquet, application/octet-stream",
     });
     return {
@@ -132,6 +149,20 @@ export class SweatStackClient {
   /** The sports this user has activities for, e.g. ["cycling", "running"] (root sports only). */
   getSports(): Promise<string[]> {
     return this.json("/api/v1/profile/sports/", { only_root: true });
+  }
+
+  // --- Profile: zones and metabolic map (beta) ----------------------------------------------------
+  // https://docs.sweatstack.no/learn/data/metabolic-profile/ . Expected states (a new athlete without
+  // enough data) come back as errors with a `code`, e.g. "insufficient_data", "missing_resting_hr".
+
+  /** Training zones for a root sport. power: cycling or running. speed: running. heart_rate: any root sport. */
+  getZones(metric: ZoneMetric, sport: string): Promise<ZonesResponse> {
+    return this.json(`/api/v1/profile/zones/${metric}`, { sport });
+  }
+
+  /** The athlete's markers (thresholds, critical power, VO2max…) for a root sport, each with its provenance. */
+  getMetabolicMap(metric: ZoneMetric | "vo2", sport: string): Promise<MetabolicMap> {
+    return this.json(`/api/v1/profile/metabolic-map/${metric}`, { sport });
   }
 
   // --- Portal (beta) ----------------------------------------------------------------------------

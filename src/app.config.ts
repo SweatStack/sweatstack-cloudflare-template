@@ -2,8 +2,9 @@
 // Renaming the app? Change `name` here and in public/manifest.webmanifest.
 
 export const APP = {
-  name: "Training Log",
-  shortName: "Training",
+  // Placeholders: replace with your app's name (also in public/manifest.webmanifest).
+  name: "Your App Name",
+  shortName: "Your App",
   description: "Your training, at a glance. Built on SweatStack.",
 
   // What we ask the athlete for on SweatStack's consent screen. Ask for as little as possible:

@@ -14,6 +14,7 @@ const ICONS = {
   list: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01",
   settings: "M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4",
   shield: "M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z",
+  chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
   chevron: "m9 6 6 6-6 6",
   back: "m15 6-6 6 6 6",
   external: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
@@ -98,11 +99,16 @@ export const StatTile: FC<{ label: string; value: string | null }> = ({ label, v
 export const StatGrid: FC<PropsWithChildren> = ({ children }) => <dl class="stats">{children}</dl>;
 
 /**
- * Where the data came from, e.g. "Garmin". Some platforms REQUIRE this line wherever their data is
- * shown. Render it next to every activity, chart and list of activities.
+ * Where the data came from, e.g. "Garmin". Some platforms (Garmin) require this line wherever their data
+ * is shown. Render it once per page, at the bottom: pass every attribution on the page, duplicates and
+ * nulls included, and it lists each platform once.
  */
-export const Attribution: FC<{ text: string | null | undefined }> = ({ text }) =>
-  text ? <p class="attribution">Data from {text}</p> : null;
+export const Attribution: FC<{ text: string | null | undefined | ReadonlyArray<string | null | undefined> }> = ({ text }) => {
+  const names = [...new Set((Array.isArray(text) ? text : [text]).flatMap((t) => (t ? t.split(/,\s*| and /) : [])))];
+  if (names.length === 0) return null;
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return <p class="attribution">Data from {list}</p>;
+};
 
 export const ActivityRow: FC<{ activity: ActivitySummary }> = ({ activity }) => {
   const distance = formatDistance(activity.summary?.distance?.sum);
@@ -116,7 +122,6 @@ export const ActivityRow: FC<{ activity: ActivitySummary }> = ({ activity }) => 
           <span class="activity-title">{activityTitle(activity)}</span>
           <span class="activity-meta">
             {formatDate(activity.start_local)} · {formatSport(activity.sport)}
-            {activity.attribution ? ` · ${activity.attribution}` : ""}
           </span>
         </span>
         <span class="activity-figures">
@@ -138,13 +143,13 @@ export const ActivityList: FC<{ activities: ActivitySummary[] }> = ({ activities
 );
 
 export const ActivityHeading: FC<{ activity: ActivitySummary }> = ({ activity }) => (
-  <p class="muted">
+  <span class="activity-heading muted">
     {formatSport(activity.sport)} · {formatDate(activity.start_local)}, {formatTime(activity.start_local)}
-  </p>
+  </span>
 );
 
 /** A chart rendered in the browser by public/training-chart.js. `summary` is the text alternative. */
-export const Chart: FC<{ type: "line" | "bars"; data: unknown; summary: string; label: string }> = ({ type, data, summary, label }) => (
+export const Chart: FC<{ type: "line" | "bars" | "stack"; data: unknown; summary: string; label: string }> = ({ type, data, summary, label }) => (
   <training-chart type={type} data={JSON.stringify(data)} role="img" aria-label={label}>
     <p class="chart-fallback muted">{summary}</p>
   </training-chart>

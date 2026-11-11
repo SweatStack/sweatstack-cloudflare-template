@@ -20,8 +20,9 @@ notifications driven by SweatStack webhooks. One Worker (Hono) and one D1 databa
 - **No inline `<script>`, no `style="..."`, no `hx-on`.** The Content-Security-Policy blocks them. Behaviour goes in
   `public/app.js`; styling goes in `public/app.css` (use the tokens at the top).
 - **Every htmx interaction must also work as a plain link or form** (except charts and push, which need JS).
-- **Show attribution next to SweatStack data** whenever the response carries it (`attribution` field, or
-  `Timeseries.attribution`): `<Attribution text={activity.attribution} />`. Garmin requires it.
+- **Show attribution once per page, at the bottom**, whenever SweatStack data on the page carries it (`attribution`
+  field, `Timeseries.attribution`, the longitudinal header): `<Attribution text={[a.attribution, b.attribution]} />`
+  lists each platform once. Garmin requires it; never make it prominent or put it first.
 - Treat every `summary` field as nullable. Show local times from `start_local`; compare and sort on `start`.
 - Keep files small, with one concern each. Prefer explicit code over abstractions.
 
@@ -31,12 +32,12 @@ notifications driven by SweatStack webhooks. One Worker (Hono) and one D1 databa
 |---|---|
 | `src/index.ts` | App entry: middleware order, mounts every route, error handling |
 | `src/app.config.ts` | App name, OAuth scopes, page size: settings a fork changes in code |
-| `src/pages/*.tsx` | One file per page (+ its fragments): `home`, `activities`, `activity`, `settings`, `admin`, `setup`, `legal`, `design`, `errors` |
+| `src/pages/*.tsx` | One file per page (+ its fragments): `home`, `activities`, `activity`, `analysis`, `settings`, `admin`, `setup`, `legal`, `design`, `errors` |
 | `src/views/components.tsx` | Shared components (Card, StatTile, Chart, Banner, …). `Layout.tsx`: the page shell |
 | `src/sweatstack/` | `client.ts` (API), `types.ts`, `oauth.ts`, `http.ts` (errors, retries), `parquet.ts` |
 | `src/config.ts`, `src/secrets.ts`, `src/state.ts` | Worker secrets → config; self-generated keys; small facts in D1 |
 | `src/<feature>.ts` | Put a non-page module (e.g. D1 helpers for a new table) at this level, like `state.ts` |
-| `src/lib/` | Pure helpers: `crypto.ts`, `format.ts` (units, dates, sport names), `series.ts` (downsampling, weekly totals) |
+| `src/lib/` | Pure helpers: `crypto.ts`, `format.ts` (units, dates, sport names), `metrics.ts` (metric labels, units, pace), `series.ts` (downsampling, AISC steps, time in zone, weekly totals) |
 | `src/auth/` | Sign-in routes, session cookie, token store with refresh-token rotation |
 | `src/push/`, `src/webhooks/` | Web Push (send to a user's devices), SweatStack webhook receiver |
 | `src/fixtures/` | Demo data: used by `/design` and by the tests |
@@ -90,16 +91,19 @@ try {
 Add the endpoint to `demoSweatStackFetch` in `src/fixtures/index.ts` so `/design` and the tests can render it.
 New data category (wellness, workouts…)? See "Add a scope" first.
 
-**Compute something from timeseries.** `getActivityData(id, ["heart_rate"])` returns columns (`elapsed` seconds and one
-array per metric, nulls for gaps). For exact calculations, leave out `segmentationOn` (full 1 Hz data); for charts, pass
-it (20-50x smaller). Decoding a multi-hour activity at 1 Hz can exceed the free plan's 10 ms CPU limit: load such work as
-a lazy fragment (see the chart) or use Workers Paid. Across many activities, use `getLongitudinalData` (one request), not
-a loop.
+**Compute something from timeseries.** `getActivityData(id, metrics, { segmentationOn: "power" | "speed" })` returns
+AISC segments: `elapsed` (segment starts, s), `durations` (s) and one array of segment means per metric. Weight by
+`durations` (see `timeInZones()` and the activity chart). Without `segmentationOn` you get 1 Hz samples (`durations`
+is null); decoding a multi-hour activity at 1 Hz can exceed the free plan's 10 ms CPU limit, so load such work as a
+lazy fragment or use Workers Paid. Across many activities use `getLongitudinalData` (one request, also takes
+`segmentationOn`; activities without segments for that metric are left out), not a loop. Canonical: `src/pages/analysis.tsx`.
 
-**Add a chart.** Render `<Chart type="line" | "bars" data={...} summary="text alternative" label="..." />` from
-`components.tsx`. Line: `{ series: [{ label, unit, color: "hr" | "power" | "speed" | "accent", x: number[], values: number[] }] }`.
-Bars: `{ labels: string[], series: [{ label, unit, color, values }] }`. Downsample long series with `downsample()` from
-`src/lib/series.ts`. Don't add a second chart library.
+**Add a chart.** Render `<Chart type="stack" | "bars" data={...} summary="text alternative" label="..." />` from
+`components.tsx`. Stack (one small chart per series, shared time axis and cursor):
+`{ series: [{ label, unit, color: "hr" | "power" | "speed" | "accent", average, x: number[], values: (number|null)[], stepped?, pace? }] }`.
+For AISC data build `x`/`values` with `steppedSeries()` and set `stepped: true` (flat steps, never interpolated); for
+1 Hz data use `downsample()`. Bars: `{ labels: string[], series: [{ label, unit, color, values }] }`. Don't add a second
+chart library.
 
 **Add a D1 table.** Create `migrations/0002_<name>.sql` (never edit a migration that has been deployed). Run
 `npm run db:migrate` locally; `npm run deploy` applies it in production; tests apply all migrations automatically. Use
@@ -117,7 +121,8 @@ the receiver already acknowledges first and works in `waitUntil`. To test what a
 the app's Consent screen tab in SweatStack. Existing users grant it the next time they sign in.
 
 **Change the look.** Edit the tokens at the top of `public/app.css`; add component styles below them. Check `/design`
-(every component and page; the sun/moon button switches theme; `?accent=%23e11d48` tries an accent). Previews only route
+(every component and page; the toolbar switches theme; `?accent=%23e11d48` tries an accent). The theme choice
+(Settings → Appearance) is a cookie applied server-side in `src/index.ts`. Previews only route
 `hx-get` fragments to demo data: forms and `hx-post` in a preview hit the real routes.
 
 **Write tests.** `testApp()` from `test/helpers.ts` gives `request()` (keeps cookies), `signIn()` and the fake SweatStack's

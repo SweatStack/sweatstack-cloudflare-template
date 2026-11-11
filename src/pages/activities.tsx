@@ -9,7 +9,7 @@ import { requireUser } from "../auth/session";
 import type { AppEnv } from "../env";
 import { formatSport } from "../lib/format";
 import { Layout } from "../views/Layout";
-import { ActivityList, Card, Empty, PageHeader, Pager } from "../views/components";
+import { ActivityList, Attribution, Card, Empty, PageHeader, Pager } from "../views/components";
 
 export const activitiesRoutes = new Hono<AppEnv>();
 
@@ -58,6 +58,7 @@ activitiesRoutes.get("/activities", requireUser, async (c) => {
         </Card>
       )}
       <Pager page={page} hasOlder={hasOlder} hrefFor={hrefFor} />
+      <Attribution text={activities.map((a) => a.attribution)} />
     </Layout>,
   );
 });

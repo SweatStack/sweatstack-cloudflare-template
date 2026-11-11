@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { base64urlDecode, base64urlEncode, decryptString, encryptString, importAesKey, randomToken, timingSafeEqual } from "../src/lib/crypto";
 import { activityTitle, formatDistance, formatDuration, formatHours, formatSpeed, formatSport, parseDuration } from "../src/lib/format";
-import { downsample, startOfWeek, weeklyTotals } from "../src/lib/series";
+import { downsample, startOfWeek, steppedSeries, timeInZones, weeklyTotals } from "../src/lib/series";
 import { demoActivities } from "../src/fixtures";
 import { parsePage, parseSport } from "../src/pages/activities";
 import { safeNextPath } from "../src/auth/session";
@@ -84,6 +84,27 @@ describe("series", () => {
     expect(weeks.at(-1)!.weekStart.toISOString()).toBe("2026-11-09T00:00:00.000Z");
     expect(weeks.at(-1)!.count).toBe(2); // Tuesday run + Wednesday ride
     expect(weeks[0]!.seconds).toBeGreaterThan(5 * 3600);
+  });
+});
+
+describe("AISC segments", () => {
+  it("draws segments as steps, closes the last one, and breaks the line at pauses", () => {
+    // Three segments: 0-60 s at 200 W, 60-90 s at 300 W, a pause, then 150-210 s at 180 W.
+    expect(steppedSeries([0, 60, 150], [60, 30, 60], [200, 300, 180])).toEqual({
+      x: [0, 60, 90, 150, 210],
+      values: [200, 300, null, 180, 180],
+    });
+  });
+
+  it("sums segment durations per zone, with open top zones and time above the zones", () => {
+    const zones = [
+      { lower: 0, upper: 150 },
+      { lower: 150, upper: 250 },
+      { lower: 250, upper: 330 },
+    ];
+    const result = timeInZones([100, 149.9, 150, 260, 400, null], [60, 30, 120, 90, 10, 500], zones);
+    expect(result).toEqual({ seconds: [90, 120, 90], above: 10, total: 310 });
+    expect(timeInZones([999], [5], [{ lower: 0, upper: null }]).seconds).toEqual([5]);
   });
 });
 

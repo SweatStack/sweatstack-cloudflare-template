@@ -21,13 +21,14 @@ import { readConfig } from "./config";
 import type { AppEnv, Deps } from "./env";
 import { activitiesRoutes } from "./pages/activities";
 import { activityRoutes } from "./pages/activity";
+import { analysisRoutes } from "./pages/analysis";
 import { adminRoutes } from "./pages/admin";
 import { DEMO_PAGES, DEMO_SESSION_USER, designAccess, designRoutes } from "./pages/design";
 import { demoActivities, demoSweatStackFetch } from "./fixtures";
 import { renderErrorFragment, renderErrorPage } from "./pages/errors";
 import { homeRoutes } from "./pages/home";
 import { legalRoutes } from "./pages/legal";
-import { settingsRoutes } from "./pages/settings";
+import { settingsRoutes, themeRoutes } from "./pages/settings";
 import { setupRoutes } from "./pages/setup";
 import { pushRoutes } from "./push/routes";
 import { getAppSecrets } from "./secrets";
@@ -36,7 +37,7 @@ import { NotAuthenticatedError, SweatStackError } from "./sweatstack/http";
 import { webhookRoutes } from "./webhooks/sweatstack";
 
 /** Paths that work before the app is configured. */
-const OPEN_PATHS = ["/setup", "/privacy", "/terms", "/design"];
+const OPEN_PATHS = ["/setup", "/privacy", "/terms", "/design", "/theme"];
 
 export function createApp(deps: Deps) {
   const app = new Hono<AppEnv>();
@@ -123,6 +124,7 @@ export function createApp(deps: Deps) {
   });
 
   app.route("/", setupRoutes);
+  app.route("/", themeRoutes);
   app.route("/", legalRoutes);
   app.route("/", designRoutes);
   app.get("/design/pages/:name", designAccess, async (c) => {
@@ -158,6 +160,7 @@ export function createApp(deps: Deps) {
   app.route("/", homeRoutes);
   app.route("/", activitiesRoutes);
   app.route("/", activityRoutes);
+  app.route("/", analysisRoutes);
   app.route("/", settingsRoutes);
   app.route("/", adminRoutes);
   app.route("/", pushRoutes);

@@ -3,7 +3,9 @@
 A small, complete app on [SweatStack](https://sweatstack.no) that you can deploy in minutes and then make your own:
 
 - **Sign in with SweatStack.** Your users sign in with an account they already have (Intervals.icu, Wahoo and more).
-- **Their training data.** The last activity, weekly training time, every activity with heart rate, power and speed over time.
+- **Their training data.** The last activity, weekly training time, and every activity with all its metrics over time.
+- **Analysis.** Time in each training zone (power, heart rate or pace) and the athlete's metabolic profile: threshold,
+  critical power, VO2max, each with where it came from.
 - **An installable app** (PWA) for iPhone and Android, with **push notifications** when a new activity arrives.
 - **Runs on Cloudflare Workers**: one Worker and one D1 database. The free plan is enough to start.
 
@@ -88,7 +90,8 @@ app's settings stay tight.
 
 - **Change the look**: `public/app.css` starts with ~20 design tokens (colours, radius, fonts). Open
   [`/design`](http://localhost:8787/design) for every component and every page, rendered from demo data, in light and dark.
-- **Rename it**: `src/app.config.ts` and `public/manifest.webmanifest`. Icons: `public/icons/` (`npm run icons`).
+- **Name it**: the app is called "Your App Name" until you change it in `src/app.config.ts` and
+  `public/manifest.webmanifest`. Icons: `public/icons/` (`npm run icons`).
 - **Your privacy policy and terms**: `content/privacy.md` and `content/terms.md` are placeholders. You're responsible
   for them as the app's operator.
 - **New features**: see [`AGENTS.md`](AGENTS.md) for the recipes, or ask your coding agent, which reads it.
@@ -107,8 +110,10 @@ Browser ──► Cloudflare Worker (Hono, server-rendered HTML + htmx) ──�
   race (`src/auth/tokens.ts`).
 - **Pages** are server-rendered with Hono JSX. htmx adds partial updates where they help (the activity chart loads
   lazily; the last activity refreshes when you return to the app). Everything else is plain links and forms.
-- **Charts** are one web component, `<training-chart>`, drawing with uPlot. Activity timeseries come from SweatStack as
-  Parquet and are decoded on the server (`src/sweatstack/parquet.ts`).
+- **Charts** are one web component, `<training-chart>`, drawing with uPlot. Timeseries come from SweatStack as Parquet,
+  decoded on the server (`src/sweatstack/parquet.ts`). Activity charts and time in zone use SweatStack's
+  [AISC segments](https://docs.sweatstack.no/learn/data/activities/#activity-data): 20-50x smaller than per-second data,
+  drawn as steps (each segment's mean, held for its duration).
 - **Notifications**: SweatStack webhook → signature check → Web Push to the user's devices, all with Web Crypto
   (`src/webhooks/`, `src/push/`).
 - **Security**: strict Content-Security-Policy (no inline scripts), CSRF origin checks, httpOnly + SameSite cookies,

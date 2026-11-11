@@ -6,7 +6,7 @@ import type { SessionUser } from "../env";
 import { Icon, type IconName } from "./components";
 
 // Adding a page to the nav? Add it here, and a <NavLink> below.
-export type NavItem = "home" | "activities" | "settings" | "admin";
+export type NavItem = "home" | "activities" | "analysis" | "settings" | "admin";
 
 type LayoutProps = PropsWithChildren<{
   title: string;
@@ -45,15 +45,11 @@ export const Layout: FC<LayoutProps> = ({ title, user, active, children }) => (
           <nav class="tabs" aria-label="Main">
             <NavLink href="/" icon="home" label="Home" current={active === "home"} />
             <NavLink href="/activities" icon="list" label="Activities" current={active === "activities"} />
+            <NavLink href="/analysis" icon="chart" label="Analysis" current={active === "analysis"} />
             <NavLink href="/settings" icon="settings" label="Settings" current={active === "settings"} />
             {user.isAdmin && <NavLink href="/admin" icon="shield" label="Admin" current={active === "admin"} />}
           </nav>
         )}
-        {/* Light/dark switch (public/app.js). The choice is a cookie; src/index.ts applies it server-side. */}
-        <button type="button" class="theme-toggle js-show" data-theme-toggle aria-label="Switch between light and dark mode">
-          <Icon name="moon" class="icon-moon" />
-          <Icon name="sun" class="icon-sun" />
-        </button>
         </div>
       </header>
       <main id="main" class={user ? "page has-tabs" : "page"}>

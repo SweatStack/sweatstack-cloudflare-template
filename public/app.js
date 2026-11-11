@@ -38,8 +38,9 @@ for (const button of document.querySelectorAll("[data-copy]")) {
   });
 }
 
-for (const select of document.querySelectorAll("select[data-autosubmit]")) {
-  select.addEventListener("change", () => select.form?.requestSubmit());
+// Selects and radio buttons that apply themselves (each form also has a submit button for no-JS).
+for (const field of document.querySelectorAll("[data-autosubmit]")) {
+  field.addEventListener("change", () => field.form?.requestSubmit());
 }
 
 for (const field of document.querySelectorAll("input[data-standalone]")) {
@@ -167,51 +168,35 @@ async function setUpPushControls(block) {
 }
 
 // --- iOS install hint --------------------------------------------------------------------------
+// iPhone and iPad only allow notifications for apps added to the Home Screen.
 
 if (isIOS && !isStandalone && signedIn && localStorage.getItem("install-hint-dismissed") !== "1") {
-  const hint = document.createElement("div");
+  const hint = document.createElement("aside");
   hint.className = "install-hint";
-  hint.setAttribute("role", "status");
-  const text = document.createElement("p");
-  text.textContent = "Install this app: tap Share, then “Add to Home Screen”. Notifications on iPhone need it.";
+  hint.setAttribute("aria-label", "Install this app");
+  const icon = document.createElement("img");
+  icon.src = "/icons/logo.svg";
+  icon.alt = "";
+  icon.width = 40;
+  icon.height = 40;
+  const text = document.createElement("div");
+  const title = document.createElement("p");
+  title.className = "install-hint-title";
+  title.textContent = "Install this app";
+  const body = document.createElement("p");
+  body.textContent = "Tap Share, then “Add to Home Screen” to get notifications.";
+  text.append(title, body);
   const close = document.createElement("button");
   close.type = "button";
-  close.textContent = "Dismiss";
+  close.className = "install-hint-close";
+  close.setAttribute("aria-label", "Dismiss");
+  close.textContent = "×";
   close.addEventListener("click", () => {
     localStorage.setItem("install-hint-dismissed", "1");
     hint.remove();
   });
-  hint.append(text, close);
+  hint.append(icon, text, close);
   document.body.append(hint);
-}
-
-// --- Light/dark toggle --------------------------------------------------------------------------
-// Remembered in a cookie, so the server renders the next page in the right theme (no flash).
-
-for (const toggle of document.querySelectorAll("[data-theme-toggle]")) {
-  toggle.addEventListener("click", () => {
-    const root = document.documentElement;
-    const current = root.dataset.theme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    const next = current === "dark" ? "light" : "dark";
-    root.dataset.theme = next;
-    const secure = location.protocol === "https:" ? "; Secure" : "";
-    document.cookie = `theme=${next}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
-    document.dispatchEvent(new CustomEvent("themechange"));
-  });
-}
-
-// --- Lazy fragments that fail -----------------------------------------------------------------------
-// If an htmx fragment (like the activity chart) can't load, say so instead of "Loading…" forever.
-
-document.body.addEventListener("htmx:responseError", (event) => replaceSlot(event.detail.elt));
-document.body.addEventListener("htmx:sendError", (event) => replaceSlot(event.detail.elt));
-function replaceSlot(element) {
-  if (!element?.matches?.("[data-chart-slot]")) return;
-  element.innerHTML = "";
-  const message = document.createElement("p");
-  message.className = "muted";
-  message.textContent = "The chart couldn't be loaded right now.";
-  element.append(message);
 }
 
 // --- /design toolbar ---------------------------------------------------------------------------

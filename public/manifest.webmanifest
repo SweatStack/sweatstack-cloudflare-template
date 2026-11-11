@@ -1,6 +1,6 @@
 {
-  "name": "Training Log",
-  "short_name": "Training",
+  "name": "Your App Name",
+  "short_name": "Your App",
   "description": "Your training, at a glance. Built on SweatStack.",
   "id": "/",
   "start_url": "/",

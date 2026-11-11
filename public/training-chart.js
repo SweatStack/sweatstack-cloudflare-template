@@ -1,11 +1,18 @@
 // <training-chart>: the one chart component. The server renders it with its data in an attribute;
 // this file draws it with uPlot (public/vendor). Colours come from the CSS tokens in app.css.
 //
-//   <training-chart type="bars" data='{"labels":["1 Sep",...],"series":[{"label":"Training time","unit":"h","color":"accent","values":[...]}]}'>
-//   <training-chart type="line" data='{"series":[{"label":"Heart rate","unit":"bpm","color":"hr","x":[0,15,...],"values":[...]}]}'>
+// type="bars": one bar per label.
+//   data='{"labels":["Z1","Z2",...],"series":[{"label":"Time","unit":"h","color":"accent","values":[...]}]}'
 //
-// `color` names a CSS custom property (accent, hr, power, speed). For "line" with several series, the
-// chart shows one at a time with buttons to switch. The element's text content is the accessible summary.
+// type="stack": one small chart per series, stacked, sharing the time axis and the cursor.
+//   data='{"series":[{"label":"Power","unit":"W","color":"power","average":"212 W","x":[0,15,...],
+//                     "values":[...],"stepped":true,"pace":false}]}'
+//   `x` is seconds from the start. `stepped`: each value holds flat until the next x (AISC segments),
+//   instead of a line between points. `null` values break the line (pauses). `pace`: values are seconds
+//   per km, formatted as m:ss with faster at the top.
+//
+// `color` names a CSS custom property (accent, hr, power, speed). The element's text content is the
+// accessible summary.
 
 let uPlotModule;
 function loadUPlot() {
@@ -19,7 +26,9 @@ function loadUPlot() {
   return uPlotModule;
 }
 
-const HEIGHT = 220;
+const BAR_HEIGHT = 220;
+const ROW_HEIGHT = 110;
+let instances = 0;
 
 class TrainingChart extends HTMLElement {
   connectedCallback() {
@@ -30,23 +39,23 @@ class TrainingChart extends HTMLElement {
     } catch {
       return; // keep the text fallback
     }
-    this.active = 0;
+    this.syncKey = `training-chart-${++instances}`;
     this.fallback = this.querySelector(".chart-fallback");
     this.render();
 
-    this.resizeObserver = new ResizeObserver(() => this.plot?.setSize({ width: this.plotWidth(), height: HEIGHT }));
+    this.resizeObserver = new ResizeObserver(() => {
+      for (const plot of this.plots ?? []) plot.setSize({ width: this.plotWidth(), height: plot.height });
+    });
     this.resizeObserver.observe(this);
     this.themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
     this.onTheme = () => this.render();
     this.themeQuery.addEventListener("change", this.onTheme);
-    document.addEventListener("themechange", this.onTheme); // the sun/moon toggle
   }
 
   disconnectedCallback() {
     this.resizeObserver?.disconnect();
     this.themeQuery?.removeEventListener("change", this.onTheme);
-    document.removeEventListener("themechange", this.onTheme);
-    this.plot?.destroy();
+    for (const plot of this.plots ?? []) plot.destroy();
   }
 
   plotWidth() {
@@ -62,59 +71,114 @@ class TrainingChart extends HTMLElement {
     const series = this.spec.series || [];
     if (series.length === 0) return;
 
-    this.plot?.destroy();
+    for (const plot of this.plots ?? []) plot.destroy();
+    this.plots = [];
     this.replaceChildren();
     if (this.fallback) {
       this.fallback.classList.add("visually-hidden"); // still read by screen readers
       this.append(this.fallback);
     }
-    if (this.getAttribute("type") === "line" && series.length > 1) this.append(this.tabs(series));
 
-    const target = document.createElement("div");
-    this.append(target);
-    const options = this.getAttribute("type") === "bars" ? this.barOptions(uPlot, series[0]) : this.lineOptions(series[this.active]);
-    const data = this.getAttribute("type") === "bars" ? [series[0].values.map((_, i) => i), series[0].values] : [series[this.active].x, series[this.active].values];
-    this.plot = new uPlot({ ...options, width: this.plotWidth(), height: HEIGHT }, data, target);
-  }
+    if (this.getAttribute("type") === "bars") {
+      const target = document.createElement("div");
+      this.append(target);
+      const s = series[0];
+      const data = [s.values.map((_, i) => i), s.values];
+      this.plots.push(new uPlot({ ...this.barOptions(uPlot, s), width: this.plotWidth(), height: BAR_HEIGHT }, data, target));
+      return;
+    }
 
-  tabs(series) {
-    const tabs = document.createElement("div");
-    tabs.className = "chart-tabs";
+    // Stacked charts share one time range, so their time axes line up.
+    const xs = series.flatMap((s) => [s.x[0], s.x[s.x.length - 1]]);
+    const range = [Math.min(...xs), Math.max(...xs)];
     series.forEach((s, i) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = s.label;
-      button.setAttribute("aria-pressed", String(i === this.active));
-      button.addEventListener("click", () => {
-        this.active = i;
-        this.render();
+      const last = i === series.length - 1;
+      const row = document.createElement("div");
+      row.className = "chart-row";
+      const head = document.createElement("div");
+      head.className = "chart-row-head";
+      const label = document.createElement("span");
+      label.textContent = s.label;
+      const value = document.createElement("span");
+      value.className = "num";
+      const idle = s.average ? `avg ${s.average}` : "";
+      value.textContent = idle;
+      head.append(label, value);
+      const target = document.createElement("div");
+      row.append(head, target);
+      this.append(row);
+
+      const options = this.rowOptions(uPlot, s, range, last, (v) => {
+        value.textContent = v == null ? idle : this.format(v, s);
       });
-      tabs.append(button);
+      this.plots.push(new uPlot({ ...options, width: this.plotWidth(), height: ROW_HEIGHT + (last ? 28 : 0) }, [s.x, s.values], target));
     });
-    return tabs;
   }
 
-  axes(xValues, unit) {
-    const axis = {
+  format(value, s) {
+    if (s.pace) return `${clock(value)} /km`;
+    return `${Math.abs(value) < 10 ? value.toFixed(1) : Math.round(value)} ${s.unit}`;
+  }
+
+  axisStyle() {
+    return {
       stroke: this.token("muted"),
       grid: { stroke: this.token("line"), width: 1 },
       ticks: { stroke: this.token("line"), width: 1 },
-      font: `12px ${this.token("font-data")}`,
+      font: `11px ${this.token("font-data")}`,
     };
-    return [
-      { ...axis, grid: { show: false }, values: xValues },
-      { ...axis, size: 48, values: (_, ticks) => ticks.map((v) => `${v}${unit === "h" ? "h" : ""}`) },
-    ];
+  }
+
+  rowOptions(uPlot, s, range, showTimeAxis, onValue) {
+    const color = this.token(s.color || "accent");
+    const axis = this.axisStyle();
+    return {
+      // Same right padding on every row, so the stacked plots line up (the time axis needs room for its last label).
+      padding: [6, 14, showTimeAxis ? 0 : 4, 0],
+      legend: { show: false },
+      cursor: {
+        sync: { key: this.syncKey },
+        drag: { x: false, y: false },
+        points: { size: 6, fill: color },
+      },
+      scales: {
+        x: { time: false, range: () => range },
+        // Pace: faster (fewer seconds per km) at the top.
+        y: s.pace ? { dir: -1 } : {},
+      },
+      axes: [
+        showTimeAxis ? { ...axis, grid: { show: false }, values: (_, ticks) => ticks.map(elapsedLabel) } : { show: false },
+        { ...axis, size: 44, ticks: { show: false }, values: (_, ticks) => ticks.map((v) => (s.pace ? clock(v) : fmtTick(v))) },
+      ],
+      series: [
+        {},
+        {
+          stroke: color,
+          width: 1.5,
+          fill: withAlpha(color, 0.1),
+          spanGaps: false,
+          points: { show: false },
+          ...(s.stepped ? { paths: uPlot.paths.stepped({ align: 1 }) } : {}),
+        },
+      ],
+      hooks: {
+        setCursor: [(u) => onValue(u.cursor.idx == null ? null : u.data[1][u.cursor.idx])],
+      },
+    };
   }
 
   barOptions(uPlot, s) {
     const color = this.token(s.color || "accent");
     const labels = this.spec.labels || [];
+    const axis = this.axisStyle();
     return {
       legend: { show: false },
       cursor: { points: { show: false }, drag: { x: false, y: false } },
       scales: { x: { time: false, range: (_, min, max) => [min - 0.6, max + 0.6] }, y: { range: (_, __, max) => [0, Math.max(1, max * 1.15)] } },
-      axes: this.axes((_, ticks) => ticks.map((t) => (Number.isInteger(t) ? labels[t] ?? "" : "")), s.unit),
+      axes: [
+        { ...axis, grid: { show: false }, values: (_, ticks) => ticks.map((t) => (Number.isInteger(t) ? labels[t] ?? "" : "")) },
+        { ...axis, size: 48, values: (_, ticks) => ticks.map((v) => `${fmtTick(v)}${s.unit === "h" ? "h" : ""}`) },
+      ],
       series: [
         {},
         {
@@ -123,37 +187,30 @@ class TrainingChart extends HTMLElement {
           stroke: color,
           paths: uPlot.paths.bars({ size: [0.62, 48], radius: 0.15 }),
           points: { show: false },
-          value: (_, v) => (v == null ? "–" : `${v} ${s.unit}`),
         },
       ],
     };
   }
+}
 
-  lineOptions(s) {
-    const color = this.token(s.color || "accent");
-    const clock = (t) => {
-      const h = Math.floor(t / 3600);
-      const m = Math.floor((t % 3600) / 60);
-      return h ? `${h}:${String(m).padStart(2, "0")}` : `${m}m`;
-    };
-    return {
-      legend: { show: true, live: true },
-      cursor: { drag: { x: false, y: false } },
-      scales: { x: { time: false } },
-      axes: this.axes((_, ticks) => ticks.map(clock), s.unit),
-      series: [
-        { label: "Time", value: (_, v) => (v == null ? "–" : clock(v)) },
-        {
-          label: s.label,
-          stroke: color,
-          width: 2,
-          fill: withAlpha(color, 0.12),
-          points: { show: false },
-          value: (_, v) => (v == null ? "–" : `${Math.round(v)} ${s.unit}`),
-        },
-      ],
-    };
-  }
+/** Seconds as h:mm:ss or m:ss. */
+function clock(seconds) {
+  const t = Math.round(seconds);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Elapsed time on the x axis: "45m", "1:30". */
+function elapsedLabel(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h ? `${h}:${String(m).padStart(2, "0")}` : `${m}m`;
+}
+
+function fmtTick(v) {
+  return Math.abs(v) < 10 && !Number.isInteger(v) ? v.toFixed(1) : String(Math.round(v));
 }
 
 /** A hex colour with transparency (canvas doesn't reliably understand color-mix()). */

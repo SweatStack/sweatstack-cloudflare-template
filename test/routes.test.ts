@@ -126,20 +126,84 @@ describe("signed in", () => {
     const html = await response.text();
     expect(html).toContain("Avg heart rate");
     expect(html).toContain("Laps");
-    expect(html).toContain('hx-get="/activities/demo-00/chart?metrics=heart_rate,power,speed"');
+    expect(html).toContain('hx-get="/activities/demo-00/chart?sport=cycling.road&amp;metrics=power,heart_rate,speed,cadence,altitude"');
+    expect(html.match(/Data from/g)).toHaveLength(1); // attribution once, at the bottom
+    expect(html.indexOf("Data from")).toBeGreaterThan(html.indexOf("Laps"));
     expect(sweatstack.calls.some((c) => c.url.includes("/data?"))).toBe(false); // the page itself never waits for Parquet
 
-    const chart = await (await request("/activities/demo-00/chart?metrics=heart_rate,power,speed", { headers: { "HX-Request": "true" } })).text();
-    expect(chart).toContain('<training-chart type="line"');
-    expect(chart).toContain("Heart rate: average");
-    expect(chart).toContain("Data from Garmin");
+    const chart = await (await request("/activities/demo-00/chart?sport=cycling.road&metrics=power,heart_rate,speed,cadence,altitude", { headers: { "HX-Request": "true" } })).text();
+    expect(chart).toContain('<training-chart type="stack"');
+    for (const label of ["Power", "Heart rate", "Speed", "Cadence", "Altitude"]) expect(chart).toContain(`${label}: average`);
+    expect(chart).toContain("&quot;stepped&quot;:true");
+    expect(chart).not.toContain("Data from");
     expect(chart).not.toContain("<html");
     const params = new URL(sweatstack.calls.find((c) => c.url.includes("/data?"))!.url).searchParams;
-    expect(params.getAll("metrics")).toEqual(["heart_rate", "power", "speed"]);
+    expect(params.getAll("metrics")).toEqual(["power", "heart_rate", "speed", "cadence", "altitude"]);
     expect(params.get("segmentation_on")).toBe("power"); // AISC: small payloads, cheap to decode
 
     const unknown = await (await request("/activities/demo-00/chart?metrics=evil,<script>")).text();
     expect(unknown).toBe("");
+  });
+
+  it("falls back to per-second data (a line) when an activity has no AISC segments", async () => {
+    const { request, signIn, sweatstack } = testApp({
+      onRequest: (r) => (new URL(r.url).searchParams.has("segmentation_on") ? Response.json({ detail: "Not found" }, { status: 404 }) : undefined),
+    });
+    await signIn();
+    const chart = await (await request("/activities/demo-00/chart?sport=running&metrics=heart_rate,speed")).text();
+    expect(chart).toContain('<training-chart type="stack"');
+    expect(chart).not.toContain("&quot;stepped&quot;:true");
+    expect(chart).toContain("Pace: average"); // running shows pace, not speed
+    expect(sweatstack.calls.filter((c) => c.url.includes("/data?"))).toHaveLength(2);
+  });
+
+  it("shows time in zone and the metabolic profile on /analysis", async () => {
+    const { request, signIn, sweatstack } = testApp();
+    await signIn();
+    // Sport and metric are required: missing or invalid values redirect to a canonical URL.
+    expect((await request("/analysis")).headers.get("location")).toBe("/analysis?sport=running&metric=power&weeks=12");
+    expect((await request("/analysis?sport=swimming&metric=power")).headers.get("location")).toBe("/analysis?sport=swimming&metric=heart_rate&weeks=12");
+    expect((await request("/analysis?sport=chess&metric=power&weeks=12")).headers.get("location")).toBe("/analysis?sport=running&metric=power&weeks=12");
+
+    const page = await (await request("/analysis?sport=cycling&metric=power&weeks=12")).text();
+    expect(page).toContain('hx-get="/analysis/results?sport=cycling&amp;metric=power&amp;weeks=12"');
+    expect(page).toMatch(/aria-current="page">Power<\/a>/);
+    expect(page).toContain(">Heart rate</a>");
+    expect(page).not.toContain(">Pace</a>"); // cycling: power and heart rate only
+
+    const results = await (await request("/analysis/results?sport=cycling&metric=power&weeks=12", { headers: { "HX-Request": "true" } })).text();
+    expect(results).toContain("Time in zone");
+    expect(results).toContain("Z7 <span class=\"muted\">Sprint</span>");
+    expect(results).toContain("≥ 450 W");
+    expect(results).toContain("24 activities");
+    expect(results).toContain("Threshold (FTP)");
+    expect(results).toContain("276 W");
+    expect(results).toContain("from a test");
+    expect(results).toContain("VO2max");
+    expect(results.match(/Data from/g)).toHaveLength(1);
+    const call = sweatstack.calls.find((c) => c.url.includes("/longitudinal-data?"))!;
+    expect(new URL(call.url).searchParams.get("segmentation_on")).toBe("power");
+
+    const running = await (await request("/analysis/results?sport=running&metric=speed&weeks=4")).text();
+    expect(running).toMatch(/\d:\d\d–\d:\d\d \/km/); // zones as pace ranges
+    const hr = await (await request("/analysis/results?sport=running&metric=heart_rate&weeks=4")).text();
+    expect(hr).toContain("Max heart rate");
+    expect(new URL(sweatstack.calls.findLast((c) => c.url.includes("/longitudinal-data?"))!.url).searchParams.get("segmentation_on")).toBe("speed");
+
+    const swimming = await (await request("/analysis/results?sport=swimming&metric=heart_rate&weeks=12")).text();
+    expect(swimming).toContain("resting heart rate from the last 7 days"); // expected missing-data state, not an error
+  });
+
+  it("saves the theme choice from Settings", async () => {
+    const { request, signIn, cookies } = testApp();
+    await signIn();
+    expect(await (await request("/settings")).text()).toContain('value="system" checked=""');
+    const response = await request("/theme", form({ theme: "dark", back: "/settings" }));
+    expect(response.headers.get("location")).toBe("/settings");
+    expect(cookies.get("theme")).toBe("dark");
+    expect(await (await request("/settings")).text()).toMatch(/^<html lang="en" data-theme="dark">/);
+    await request("/theme", form({ theme: "system", back: "https://evil.example" }));
+    expect(cookies.has("theme")).toBe(false);
   });
 
   it("renders pages in the theme chosen with the toggle", async () => {
@@ -226,7 +290,7 @@ describe("design workbench", () => {
   it("is open on localhost and renders every page from demo data", async () => {
     const { request } = testApp();
     expect((await request("/design")).status).toBe(200);
-    for (const page of ["landing", "dashboard", "activities", "activity", "settings", "admin", "setup", "privacy"]) {
+    for (const page of ["landing", "dashboard", "activities", "activity", "analysis", "settings", "admin", "setup", "privacy"]) {
       expect((await request(`/design/pages/${page}`)).status, page).toBe(200);
     }
   });
@@ -237,7 +301,7 @@ describe("design workbench", () => {
     const fragment = /hx-get="(\/design\/fragment\/activities\/[^"]+)"/.exec(page)?.[1];
     expect(fragment).toBeDefined();
     const chart = await (await request(fragment!.replaceAll("&amp;", "&"), { headers: { "HX-Request": "true" } })).text();
-    expect(chart).toContain('<training-chart type="line"');
+    expect(chart).toContain('<training-chart type="stack"');
   });
 
   it("is hidden on a deployed app for anyone but admins", async () => {
@@ -253,6 +317,6 @@ describe("legal pages", () => {
     const html = await (await request("/privacy")).text();
     expect(html).toContain("<h1>Privacy policy</h1>");
     expect(html).toContain("Placeholder");
-    expect(html).toContain("Training Log is run by");
+    expect(html).toContain("Your App Name is run by");
   });
 });

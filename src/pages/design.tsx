@@ -6,6 +6,8 @@
 //   /design/pages/<name>     a real page with demo data: landing, dashboard, activities, activity, settings, admin, setup
 
 import { Hono, type MiddlewareHandler } from "hono";
+import { getCookie } from "hono/cookie";
+import { ThemeForm } from "./settings";
 import { DEMO_USER, demoActivities, demoActivityDetails } from "../fixtures";
 import type { AppEnv } from "../env";
 import { formatDayMonth } from "../lib/format";
@@ -39,6 +41,7 @@ export const DEMO_PAGES: Record<string, { path: string; signedIn: boolean; uncon
   dashboard: { path: "/", signedIn: true },
   activities: { path: "/activities", signedIn: true },
   activity: { path: "/activities/:demo", signedIn: true }, // the most recent demo activity
+  analysis: { path: "/analysis?sport=cycling&metric=power&weeks=12", signedIn: true },
   settings: { path: "/settings", signedIn: true },
   admin: { path: "/admin", signedIn: true },
   setup: { path: "/setup", signedIn: false, unconfigured: true },
@@ -62,6 +65,7 @@ designRoutes.get("/design", designAccess, (c) => {
     <Layout title="Design" user={c.var.user ?? DEMO_SESSION_USER} active="home">
       <PageHeader title="Design workbench" subtitle="Every component, in every state. Edit public/app.css and reload." />
       <div class="design-toolbar" data-design-toolbar>
+        <ThemeForm current={(getCookie(c, "theme") as "light" | "dark" | undefined) ?? "system"} back="/design" />
         <span class="muted small">Accent</span>
         {["#2563eb", "#e11d48", "#059669", "#7c3aed", "#ea580c"].map((color) => (
           <a class="swatch" href={`?accent=${encodeURIComponent(color)}`} data-swatch={color} aria-label={`Accent ${color}`}></a>
@@ -128,14 +132,14 @@ designRoutes.get("/design", designAccess, (c) => {
       </Card>
       <Card>
         <Chart
-          type="line"
-          label="Heart rate, power and speed over time"
-          summary="Demo timeseries."
+          type="stack"
+          label="Power, heart rate and speed over time"
+          summary="Demo timeseries: power as AISC steps, heart rate and speed as lines."
           data={{
             series: [
-              { label: "Heart rate", unit: "bpm", color: "hr", ...wave(120, 160, 0) },
-              { label: "Power", unit: "W", color: "power", ...wave(150, 280, 1) },
-              { label: "Speed", unit: "km/h", color: "speed", ...wave(26, 36, 2) },
+              { label: "Power", unit: "W", color: "power", average: "214 W", stepped: true, ...steps(150, 300) },
+              { label: "Heart rate", unit: "bpm", color: "hr", average: "141 bpm", ...wave(120, 160, 0) },
+              { label: "Speed", unit: "km/h", color: "speed", average: "31.2 km/h", ...wave(26, 36, 2) },
             ],
           }}
         />
@@ -178,6 +182,21 @@ designRoutes.get("/design", designAccess, (c) => {
     </Layout>,
   );
 });
+
+/** Demo AISC-like segments: flat steps of varying length, with one pause (null). */
+function steps(min: number, max: number) {
+  const x: number[] = [];
+  const values: Array<number | null> = [];
+  let t = 0;
+  for (let i = 0; t < 3600; i++) {
+    x.push(t);
+    values.push(i === 14 ? null : Math.round(min + (max - min) * (0.5 + 0.45 * Math.sin(i * 1.7))));
+    t += 60 + ((i * 97) % 240);
+  }
+  x.push(3600);
+  values.push(values.at(-1) ?? null);
+  return { x, values };
+}
 
 /** A smooth demo series for the line chart. */
 function wave(min: number, max: number, phase: number) {

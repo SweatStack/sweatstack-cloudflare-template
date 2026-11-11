@@ -98,3 +98,60 @@ export function trendStartDate(weeks: number, today = new Date()): string {
   start.setUTCDate(start.getUTCDate() - (weeks - 1) * 7);
   return start.toISOString().slice(0, 10);
 }
+
+/**
+ * AISC segments as a stepped line: each segment's value is held flat from its start for its whole
+ * duration, with no interpolation. Returns the points uPlot needs for a stepped path (x = segment start,
+ * plus a final point at the last segment's end). A pause between segments becomes a null, so the line
+ * breaks there instead of bridging it.
+ */
+export function steppedSeries(
+  starts: readonly number[],
+  durations: readonly number[],
+  values: readonly (number | null)[],
+): { x: number[]; values: Array<number | null> } {
+  const x: number[] = [];
+  const out: Array<number | null> = [];
+  for (let i = 0; i < starts.length; i++) {
+    const start = starts[i]!;
+    const end = start + (durations[i] ?? 0);
+    x.push(start);
+    out.push(values[i] ?? null);
+    const next = starts[i + 1];
+    if (next === undefined) {
+      x.push(end); // close the last step
+      out.push(values[i] ?? null);
+    } else if (next - end > 1) {
+      x.push(end); // a pause: end this step, then break the line until the next segment
+      out.push(null);
+    }
+  }
+  return { x, values: out };
+}
+
+export type ZoneBounds = { lower: number; upper: number | null };
+
+/**
+ * Seconds spent in each zone (lower <= value < upper; a null upper is open-ended), from rows with a
+ * value and a duration, such as AISC segments. Time above the top zone's upper bound is `above`.
+ * Rows without a value don't count.
+ */
+export function timeInZones(
+  values: readonly (number | null)[],
+  durations: readonly number[],
+  zones: readonly ZoneBounds[],
+): { seconds: number[]; above: number; total: number } {
+  const seconds = zones.map(() => 0);
+  let above = 0;
+  let total = 0;
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i];
+    const duration = durations[i] ?? 0;
+    if (value === null || value === undefined || !Number.isFinite(value) || duration <= 0) continue;
+    total += duration;
+    const index = zones.findIndex((z) => value >= z.lower && (z.upper === null || value < z.upper));
+    if (index >= 0) seconds[index]! += duration;
+    else if (zones.length && value >= (zones[zones.length - 1]!.upper ?? Infinity)) above += duration;
+  }
+  return { seconds, above, total };
+}

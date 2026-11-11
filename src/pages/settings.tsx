@@ -1,12 +1,17 @@
 // /settings: notifications, data sources (SweatStack Portal), account.
 
 import { Hono } from "hono";
-import { endSession, requireUser } from "../auth/session";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import type { FC } from "hono/jsx";
+import { endSession, requireUser, safeNextPath } from "../auth/session";
 import type { AppEnv } from "../env";
 import { Layout } from "../views/Layout";
 import { Card, CopyField, Icon, PageHeader } from "../views/components";
 
 export const settingsRoutes = new Hono<AppEnv>();
+export const themeRoutes = new Hono<AppEnv>();
+
+type Theme = "system" | "light" | "dark";
 
 settingsRoutes.get("/settings", requireUser, (c) => {
   const user = c.var.user!;
@@ -45,6 +50,10 @@ settingsRoutes.get("/settings", requireUser, (c) => {
             notifications work already.
           </p>
         )}
+      </Card>
+
+      <Card title="Appearance">
+        <ThemeForm current={(getCookie(c, "theme") as Theme | undefined) ?? "system"} back="/settings" />
       </Card>
 
       <Card title="Data sources">
@@ -89,6 +98,39 @@ settingsRoutes.get("/settings", requireUser, (c) => {
       </p>
     </Layout>,
   );
+});
+
+/**
+ * Light, dark, or follow the device. Stored in a cookie that src/index.ts applies to every page
+ * server-side (no flash of the wrong theme). A plain form: works without JavaScript.
+ */
+export const ThemeForm: FC<{ current: Theme; back: string }> = ({ current, back }) => (
+  <form class="theme-form" method="post" action="/theme">
+    <input type="hidden" name="back" value={back} />
+    <fieldset class="segmented">
+      <legend class="visually-hidden">Theme</legend>
+      {(["system", "light", "dark"] as const).map((theme) => (
+        <label>
+          <input type="radio" name="theme" value={theme} checked={theme === current} data-autosubmit />
+          <span>{theme === "system" ? "Device setting" : theme === "light" ? "Light" : "Dark"}</span>
+        </label>
+      ))}
+    </fieldset>
+    <button type="submit" class="btn btn-secondary btn-small js-hide">
+      Save
+    </button>
+  </form>
+);
+
+themeRoutes.post("/theme", async (c) => {
+  const form = await c.req.parseBody();
+  const theme = form.theme;
+  if (theme === "light" || theme === "dark") {
+    setCookie(c, "theme", theme, { path: "/", maxAge: 365 * 86400, sameSite: "Lax", secure: new URL(c.req.url).protocol === "https:" });
+  } else {
+    deleteCookie(c, "theme", { path: "/" });
+  }
+  return c.redirect(safeNextPath(typeof form.back === "string" ? form.back : "/"), 303);
 });
 
 /** Sends the user to the SweatStack Portal to connect or manage data sources. */

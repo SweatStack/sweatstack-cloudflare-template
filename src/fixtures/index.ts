@@ -4,9 +4,13 @@
 // Keep it realistic: the tests depend on it, and so does the design workbench.
 
 import activityParquet from "./activity-data.parquet";
+import activitySegmentsParquet from "./activity-segments.parquet";
+import longitudinalCycling from "./longitudinal-cycling.parquet";
+import longitudinalRunning from "./longitudinal-running.parquet";
+import longitudinalSwimming from "./longitudinal-swimming.parquet";
 import { parseDuration } from "../lib/format";
 import type { Fetch } from "../sweatstack/http";
-import type { ActivityDetails, ActivitySummary, UserInfo } from "../sweatstack/types";
+import type { ActivityDetails, ActivitySummary, MetabolicMap, UserInfo, ZonesResponse } from "../sweatstack/types";
 
 export const DEMO_USER: UserInfo = { sub: "demo-athlete", name: "Demo Athlete" };
 
@@ -53,7 +57,14 @@ export function demoActivities(now = new Date(), weeks = 13): ActivitySummary[] 
       end: new Date(start.getTime() + seconds * 1000).toISOString().replace(".000", ""),
       start_local: startLocal,
       duration: isoDuration(seconds),
-      metrics: ["heart_rate", "distance", "speed", ...(template.power ? (["power"] as const) : [])],
+      metrics: [
+        "heart_rate",
+        "distance",
+        "speed",
+        ...(template.power ? (["power"] as const) : []),
+        ...(template.sport === "swimming" ? [] : (["cadence"] as const)),
+        ...(template.sport.startsWith("cycling") ? (["altitude"] as const) : []),
+      ],
       summary: {
         heart_rate: { mean: Math.round(template.hr * variation), max: Math.round(template.hr * variation + 24) },
         distance: distance === null ? null : { sum: distance },
@@ -85,6 +96,38 @@ export function demoActivityDetails(activity: ActivitySummary): ActivityDetails 
 /** Root sports in the demo data, as GET /profile/sports/?only_root=true returns them. */
 export const DEMO_SPORTS = ["running", "cycling", "swimming"];
 
+const LONGITUDINAL: Record<string, ArrayBuffer> = { cycling: longitudinalCycling, running: longitudinalRunning, swimming: longitudinalSwimming };
+
+const zone = (name: string, label: string, lower: number, upper: number | null) => ({ name, label, lower, upper });
+export const DEMO_ZONES: Record<string, ZonesResponse> = {
+  "power/cycling": {
+    zone_system: "seven_zone",
+    zones: [zone("Z1", "Active recovery", 0, 152), zone("Z2", "Endurance", 152, 207), zone("Z3", "Tempo", 207, 248), zone("Z4", "Threshold", 248, 290), zone("Z5", "VO2max", 290, 330), zone("Z6", "Anaerobic", 330, 450), zone("Z7", "Sprint", 450, null)],
+  },
+  "power/running": {
+    zone_system: "seven_zone",
+    zones: [zone("Z1", "Active recovery", 0, 180), zone("Z2", "Endurance", 180, 230), zone("Z3", "Tempo", 230, 265), zone("Z4", "Threshold", 265, 300), zone("Z5", "VO2max", 300, 335), zone("Z6", "Anaerobic", 335, 420), zone("Z7", "Sprint", 420, null)],
+  },
+  "speed/running": {
+    zone_system: "five_zone",
+    zones: [zone("Z1", "Recovery", 0, 2.9), zone("Z2", "Endurance", 2.9, 3.4), zone("Z3", "Tempo", 3.4, 3.85), zone("Z4", "Threshold", 3.85, 4.25), zone("Z5", "VO2max", 4.25, 4.7)],
+  },
+  "heart_rate/*": {
+    zone_system: "five_zone",
+    zones: [zone("Z1", "Recovery", 0, 131), zone("Z2", "Endurance", 131, 144), zone("Z3", "Tempo", 144, 157), zone("Z4", "Threshold", 157, 170), zone("Z5", "VO2max", 170, null)],
+  },
+};
+
+const marker = (value: number, provenance: "modeled" | "measured" | "declared" | "external" = "modeled") => ({ value, provenance });
+export const DEMO_MAPS: Record<string, MetabolicMap> = {
+  "power/cycling": { fatmax: marker(168), first_threshold: marker(168), second_threshold: marker(276, "measured"), critical_power: marker(289), max_aerobic_power: marker(335), w_prime: marker(18.3), mlss: marker(272, "measured"), lt1: null, lt2: null, vt1: null, vt2: null },
+  "power/running": { fatmax: marker(205), first_threshold: marker(205), second_threshold: marker(282), critical_power: marker(295), max_aerobic_power: marker(338), w_prime: marker(12.1), mlss: null, lt1: null, lt2: null, vt1: null, vt2: null },
+  "speed/running": { fatmax: marker(3.12), first_threshold: marker(3.12), second_threshold: marker(4.02), critical_speed: marker(4.16), max_aerobic_speed: marker(4.62), d_prime: marker(205), mlss: null, lt1: null, lt2: null, vt1: null, vt2: null },
+  "heart_rate/*": { heart_rate_max: marker(188, "declared"), first_threshold: null, second_threshold: marker(169, "external"), mlss: null, lt1: null, lt2: null, vt1: null, vt2: null },
+  "vo2/cycling": { vo2max: marker(4120), vo2max_relative: marker(57.2) },
+  "vo2/running": { vo2max: marker(4050), vo2max_relative: marker(56.3) },
+};
+
 /**
  * A fake SweatStack API (activities, profile, portal) served from the demo data. Pass it where the app
  * expects `fetch`. Requests it doesn't know get a 404.
@@ -103,6 +146,21 @@ export function demoSweatStackFetch(now = new Date()): Fetch {
       return new Response(`${JSON.stringify({ backfill_loaded_until: "2019-03-01T00:00:00Z" })}\n`, { headers: { "content-type": "application/x-ndjson" } });
     }
     if (path === "/api/v1/activities/latest") return json(demoActivityDetails(activities[0]!));
+    if (path === "/api/v1/activities/longitudinal-data") {
+      const sport = (url.searchParams.get("sport") ?? "").split(/[.+]/)[0]!;
+      const data = LONGITUDINAL[sport];
+      return data ? parquet(data) : json({ detail: "No demo data for this sport" }, 404);
+    }
+    const profile = /^\/api\/v1\/profile\/(zones|metabolic-map)\/(\w+)$/.exec(path);
+    if (profile) {
+      const [, kind, metric] = profile;
+      const sport = url.searchParams.get("sport") ?? "";
+      // Swimming has no resting heart rate in the demo account: shows the "missing data" state.
+      if (sport === "swimming") return problem("missing_resting_hr", "No resting heart rate in the last 7 days.");
+      const table = kind === "zones" ? DEMO_ZONES : DEMO_MAPS;
+      const found = table[`${metric}/${sport}`] ?? table[`${metric}/*`];
+      return found ? json(found) : json({ detail: "Unsupported sport for this metric" }, 422);
+    }
     if (path === "/api/v1/activities/") {
       const sport = url.searchParams.get("sport");
       const start = url.searchParams.get("start");
@@ -116,7 +174,7 @@ export function demoSweatStackFetch(now = new Date()): Fetch {
     const data = /^\/api\/v1\/activities\/([^/]+)\/data$/.exec(path);
     if (data) {
       if (!activities.some((a) => a.id === decodeURIComponent(data[1]!))) return json({ detail: "Not found" }, 404);
-      return new Response(activityParquet.slice(0), { headers: { "content-type": "application/octet-stream", "SweatStack-Attribution": "Garmin" } });
+      return parquet(url.searchParams.has("segmentation_on") ? activitySegmentsParquet : activityParquet);
     }
     const one = /^\/api\/v1\/activities\/([^/]+)$/.exec(path);
     if (one) {
@@ -125,6 +183,17 @@ export function demoSweatStackFetch(now = new Date()): Fetch {
     }
     return json({ detail: `Not in demo data: ${request.method} ${path}` }, 404);
   };
+}
+
+function parquet(data: ArrayBuffer): Response {
+  return new Response(data.slice(0), { headers: { "content-type": "application/octet-stream", "SweatStack-Attribution": "Garmin" } });
+}
+
+function problem(code: string, detail: string): Response {
+  return new Response(JSON.stringify({ type: "about:blank", title: detail, status: 422, code, detail }), {
+    status: 422,
+    headers: { "content-type": "application/problem+json" },
+  });
 }
 
 function json(body: unknown, status = 200): Response {

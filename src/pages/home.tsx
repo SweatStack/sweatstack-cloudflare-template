@@ -52,7 +52,7 @@ homeRoutes.get("/", async (c) => {
       weeks={weeklyTotals(recent, APP.trendWeeks)}
       // Only while some history has arrived: with no activities at all, the empty state explains what to do.
       importing={isNewUser && latest !== null && stillImporting(backfill)}
-      attribution={[...new Set(recent.map((a) => a.attribution).filter(Boolean))].join(", ")}
+      attributions={[latest?.attribution, ...recent.map((a) => a.attribution)]}
       c={c}
     />,
   );
@@ -117,9 +117,9 @@ const Dashboard: FC<{
   latest: ActivityDetails | null;
   weeks: WeekTotal[];
   importing: boolean;
-  attribution: string;
+  attributions: Array<string | null | undefined>;
   c: Context<AppEnv>;
-}> = ({ latest, weeks, importing, attribution, c }) => {
+}> = ({ latest, weeks, importing, attributions, c }) => {
   const user = c.var.user;
   const thisWeek = weeks[weeks.length - 1]?.seconds ?? 0;
   // Average over completed weeks: the current week is still in progress.
@@ -159,8 +159,8 @@ const Dashboard: FC<{
             series: [{ label: "Training time", unit: "h", color: "accent", values: weeks.map((w) => +(w.seconds / 3600).toFixed(2)) }],
           }}
         />
-        <Attribution text={attribution} />
       </Card>
+      <Attribution text={attributions} />
     </Layout>
   );
 };
@@ -193,7 +193,6 @@ const LastActivityCard: FC<{ activity: ActivityDetails }> = ({ activity }) => {
         {!s?.power?.mean && <StatTile label="Avg speed" value={formatSpeed(s?.speed?.mean, activity.sport)} />}
       </StatGrid>
       <div class="card-foot">
-        <Attribution text={activity.attribution} />
         <span class="link-label">
           View activity <Icon name="chevron" />
         </span>

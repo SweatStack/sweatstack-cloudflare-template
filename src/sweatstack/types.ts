@@ -68,8 +68,14 @@ export type ActivityDetails = ActivitySummary & {
 
 /** Columns decoded from a Parquet timeseries. Missing metrics are absent; samples can be null. */
 export type Timeseries = {
-  /** Seconds since the first sample, one per row. */
+  /** Seconds since the start of the first row, one per row (a sample, or the start of a segment). */
   elapsed: number[];
+  /**
+   * AISC-segmented data only: how long each segment lasted, in seconds. A segment's values are its means,
+   * held for its whole duration; a gap between one segment's end and the next one's start is a pause.
+   * Null for per-second data.
+   */
+  durations: number[] | null;
   columns: Partial<Record<Metric, Array<number | null>>>;
   /** The `SweatStack-Attribution` response header, e.g. "Garmin". */
   attribution: string | null;
@@ -95,6 +101,32 @@ export type TokenResponse = {
   refresh_token?: string | null;
   scope?: string | null;
 };
+
+// --- Profile: zones and metabolic map (beta) https://docs.sweatstack.no/learn/data/metabolic-profile/ ---
+
+export type ZoneMetric = "power" | "speed" | "heart_rate";
+
+export type Zone = {
+  /** Stable: "Z1".."Z7". Branch on this. */
+  name: string;
+  /** For display only, e.g. "Endurance". */
+  label: string;
+  /** Inclusive lower bound (W, m/s or bpm). */
+  lower: number;
+  /** Exclusive upper bound, or null for an open top zone. */
+  upper: number | null;
+};
+
+export type ZonesResponse = { zone_system: string; zones: Zone[] };
+
+export type MarkerValue = {
+  value: number;
+  /** modeled (from training), measured (a test), declared (set by a person), external (a device or other system). */
+  provenance: "modeled" | "measured" | "declared" | "external";
+};
+
+/** The metabolic map for one metric: marker name → value, or null when unknown. Keys depend on the metric. */
+export type MetabolicMap = Record<string, MarkerValue | null>;
 
 /** Portal pages you can send a user to. https://docs.sweatstack.no/learn/portal/ */
 export type PortalDestination = "manage-integrations" | "profile";

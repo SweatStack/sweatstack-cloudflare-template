@@ -204,9 +204,6 @@ svg {
 .js .js-hide {
   display: none;
 }
-html:not(.js) .js-show {
-  display: none;
-}
 
 [hidden] {
   display: none !important;
@@ -265,36 +262,6 @@ html:not(.js) .js-show {
   gap: var(--s2);
 }
 
-/* Light/dark toggle: shows a moon in light mode (switch to dark) and a sun in dark mode. */
-.theme-toggle {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--muted);
-  cursor: pointer;
-}
-.theme-toggle:hover {
-  color: var(--ink);
-}
-.theme-toggle .icon-sun,
-:root[data-theme="dark"] .theme-toggle .icon-moon {
-  display: none;
-}
-:root[data-theme="dark"] .theme-toggle .icon-sun {
-  display: block;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .theme-toggle .icon-moon {
-    display: none;
-  }
-  :root:not([data-theme="light"]) .theme-toggle .icon-sun {
-    display: block;
-  }
-}
 
 /* Main navigation: a bottom tab bar on phones, links in the top bar on wider screens. */
 .tabs {
@@ -460,6 +427,9 @@ html:not(.js) .js-show {
   display: flex;
   align-items: center;
   gap: var(--s3);
+}
+.activity-heading {
+  display: block;
 }
 .card-heading {
   font-weight: 650;
@@ -718,31 +688,23 @@ html:not(.js) .js-show {
 /* Charts (public/training-chart.js) */
 training-chart {
   display: block;
-  min-height: 220px;
+  min-height: 120px;
   position: relative;
 }
-.chart-tabs {
-  display: flex;
-  gap: var(--s1);
-  margin-bottom: var(--s2);
-  flex-wrap: wrap;
+.chart-row + .chart-row {
+  margin-top: var(--s2);
 }
-.chart-tabs button {
-  font: inherit;
+.chart-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   font-size: 0.8125rem;
   font-weight: 600;
-  padding: var(--s1) var(--s3);
-  min-height: 32px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
+  padding: 0 14px 0 44px; /* line up with the plot area: past the y axis, and the right padding */
 }
-.chart-tabs button[aria-pressed="true"] {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--bg);
+.chart-row-head .num {
+  color: var(--muted);
+  font-weight: 500;
 }
 .chart-fallback {
   font-size: 0.875rem;
@@ -1016,7 +978,7 @@ select {
   gap: var(--s1);
 }
 
-/* PWA install hint (iOS) */
+/* PWA install hint (iOS): a card like the rest of the app, above the tab bar. */
 .install-hint {
   position: fixed;
   left: var(--s3);
@@ -1027,23 +989,126 @@ select {
   margin: 0 auto;
   display: flex;
   gap: var(--s3);
-  align-items: flex-start;
-  background: var(--ink);
-  color: var(--bg);
+  align-items: center;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: var(--s3) var(--s4);
+  padding: var(--s3);
   font-size: 0.875rem;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.12);
 }
-.install-hint button {
-  margin-left: auto;
-  background: transparent;
+.install-hint img {
+  border-radius: 10px;
+  flex: none;
+}
+.install-hint > div {
+  flex: 1;
+  min-width: 0;
+}
+.install-hint p {
+  color: var(--muted);
+}
+.install-hint .install-hint-title {
+  color: var(--ink);
+  font-weight: 650;
+}
+.install-hint-close {
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   border: 0;
-  color: inherit;
-  font: inherit;
-  font-weight: 600;
+  background: var(--surface-sunken);
+  color: var(--muted);
+  font-size: 1.25rem;
+  line-height: 1;
   cursor: pointer;
-  min-height: 32px;
+}
+
+/* Segmented control: links (metric on /analysis) or radio buttons (theme on /settings). */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  align-self: flex-start;
+}
+.segmented a,
+.segmented label span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--s4);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.segmented a[aria-current="page"],
+.segmented input:checked + span {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.segmented label {
+  font-weight: inherit;
+}
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.segmented input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.theme-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+}
+
+/* Analysis */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3) var(--s5);
+  align-items: center;
+}
+.analysis-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+.markers {
+  display: flex;
+  flex-direction: column;
+}
+.marker {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-top: 1px solid var(--line);
+}
+.marker:first-child {
+  border-top: 0;
+}
+.marker dt {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+.marker dd {
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* /design */
