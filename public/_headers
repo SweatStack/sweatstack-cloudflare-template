@@ -1,0 +1,9 @@
+# Headers for static files in public/ (pages from the Worker set their own, in src/index.ts).
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'
+
+# Always check for a new service worker.
+/sw.js
+  Cache-Control: no-cache
