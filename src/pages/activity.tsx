@@ -94,12 +94,12 @@ const Stats: FC<{ activity: ActivityDetails }> = ({ activity }) => {
     <StatGrid>
       <StatTile label="Duration" value={formatDuration(parseDuration(activity.duration))} />
       <StatTile label="Distance" value={formatDistance(s?.distance?.sum)} />
-      <StatTile label={usesPace(activity.sport) ? "Avg pace" : "Avg speed"} value={formatSpeed(s?.speed?.mean, activity.sport)} tone="speed" />
+      <StatTile label={usesPace(activity.sport) ? "Avg pace" : "Avg speed"} value={formatSpeed(s?.speed?.mean, activity.sport)} />
       <StatTile label="Elevation gain" value={formatNumber(s?.altitude?.gain, "m")} />
-      <StatTile label="Avg heart rate" value={formatNumber(s?.heart_rate?.mean, "bpm")} tone="hr" />
-      <StatTile label="Max heart rate" value={formatNumber(s?.heart_rate?.max, "bpm")} tone="hr" />
-      <StatTile label="Avg power" value={formatNumber(s?.power?.mean, "W")} tone="power" />
-      <StatTile label="Max power" value={formatNumber(s?.power?.max, "W")} tone="power" />
+      <StatTile label="Avg heart rate" value={formatNumber(s?.heart_rate?.mean, "bpm")} />
+      <StatTile label="Max heart rate" value={formatNumber(s?.heart_rate?.max, "bpm")} />
+      <StatTile label="Avg power" value={formatNumber(s?.power?.mean, "W")} />
+      <StatTile label="Max power" value={formatNumber(s?.power?.max, "W")} />
       <StatTile label="Avg cadence" value={formatNumber(s?.cadence?.mean, "rpm")} />
     </StatGrid>
   );

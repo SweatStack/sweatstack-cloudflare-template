@@ -106,9 +106,9 @@ designRoutes.get("/design", designAccess, (c) => {
         <StatGrid>
           <StatTile label="Duration" value="1:32:10" />
           <StatTile label="Distance" value="48.3 km" />
-          <StatTile label="Avg heart rate" value="139 bpm" tone="hr" />
-          <StatTile label="Avg power" value="212 W" tone="power" />
-          <StatTile label="Avg speed" value="31.5 km/h" tone="speed" />
+          <StatTile label="Avg heart rate" value="139 bpm" />
+          <StatTile label="Avg power" value="212 W" />
+          <StatTile label="Avg speed" value="31.5 km/h" />
           <StatTile label="Elevation gain" value="508 m" />
         </StatGrid>
         <Attribution text="Garmin" />

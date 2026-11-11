@@ -87,9 +87,9 @@ export const SectionLabel: FC<PropsWithChildren> = ({ children }) => <h2 class="
 
 // --- Data display ----------------------------------------------------------------------------
 
-export const StatTile: FC<{ label: string; value: string | null; tone?: "hr" | "power" | "speed" }> = ({ label, value, tone }) =>
+export const StatTile: FC<{ label: string; value: string | null }> = ({ label, value }) =>
   value === null ? null : (
-    <div class={tone ? `stat stat-${tone}` : "stat"}>
+    <div class="stat">
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>
