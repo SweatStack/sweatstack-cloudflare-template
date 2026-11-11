@@ -1,0 +1,36 @@
+{
+  "name": "sweatstack-cloudflare-template",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A starter app for SweatStack on Cloudflare Workers: Sign in with SweatStack, training data, PWA and push notifications.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler d1 migrations apply DB --local && wrangler dev",
+    "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "typecheck": "wrangler types --env-file .dev.vars.example --check && tsc --noEmit",
+    "types": "wrangler types --env-file .dev.vars.example",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "webhook:simulate": "node scripts/simulate-webhook.mjs",
+    "icons": "node scripts/icons.mjs"
+  },
+  "dependencies": {
+    "fzstd": "0.1.1",
+    "hono": "4.13.16",
+    "hyparquet": "1.33.0",
+    "marked": "18.1.2"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.10",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12",
+    "wrangler": "4.155.0"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "workerd": true
+  }
+}

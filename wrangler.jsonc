@@ -1,0 +1,26 @@
+// Cloudflare Worker configuration. Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
+//
+// Configuration that YOU set (SweatStack credentials, admin ids, webhook secret) is NOT in this file.
+// It lives in Worker secrets, so Git-triggered redeploys never reset it. See .dev.vars.example.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sweatstack-app",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-20",
+  "upload_source_maps": true,
+  "observability": { "enabled": true },
+
+  // Files in public/ are served as-is. Requests that match no file go to the Worker.
+  "assets": { "directory": "./public", "binding": "ASSETS", "not_found_handling": "none" },
+
+  // Markdown files (content/*.md: privacy policy, terms) are bundled as text, and the sample
+  // Parquet file used by /design (src/fixtures) as bytes.
+  "rules": [
+    { "type": "Text", "globs": ["**/*.md"], "fallthrough": true },
+    { "type": "Data", "globs": ["**/*.parquet"], "fallthrough": true }
+  ],
+
+  // One D1 database: app keys, users + encrypted tokens, push subscriptions, webhook log.
+  // No database_id: the Deploy to Cloudflare button and `wrangler deploy` create it for you.
+  "d1_databases": [{ "binding": "DB", "database_name": "sweatstack-app", "migrations_dir": "migrations" }]
+}

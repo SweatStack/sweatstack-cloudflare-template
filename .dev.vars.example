@@ -1,0 +1,15 @@
+# Secrets for this app. Every value may be left empty: the app then shows /setup and tells you what to do.
+# Local development: copy this file to .dev.vars and fill it in (use a separate SweatStack "dev" app).
+# Production: set these in the Cloudflare dashboard (Worker > Settings > Variables and Secrets).
+
+# Your SweatStack app's Client ID (app.sweatstack.no > Settings > API > your app > OAuth tab).
+SWEATSTACK_CLIENT_ID=
+
+# A client secret you create on the same OAuth tab ("Client secrets"). Shown only once.
+SWEATSTACK_CLIENT_SECRET=
+
+# Comma-separated SweatStack user ids that may open /admin. Sign in once to see your id on /settings.
+ADMIN_USER_IDS=
+
+# Webhook signing secret (starts with whsec_) from your SweatStack app's Webhooks tab. Enables push notifications.
+SWEATSTACK_WEBHOOK_SECRET=
