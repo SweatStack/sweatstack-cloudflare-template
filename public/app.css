@@ -620,7 +620,6 @@ html:not(.js) .js-show {
   background: var(--surface-sunken);
   border-radius: var(--radius-small);
   padding: var(--s3);
-  border-left: 3px solid transparent;
 }
 .stat dt {
   font-size: 0.8125rem;
@@ -632,23 +631,10 @@ html:not(.js) .js-show {
   font-size: 1.125rem;
   font-weight: 600;
 }
-.stat-hr {
-  border-left-color: var(--hr);
-}
-.stat-power {
-  border-left-color: var(--power);
-}
-.stat-speed {
-  border-left-color: var(--speed);
-}
 /* Stats directly on the page (activity detail) sit on the page background. */
 .page > .stats .stat {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-left-width: 3px;
-}
-.page > .stats .stat:not(.stat-hr, .stat-power, .stat-speed) {
-  border-left-color: var(--line);
 }
 
 .trend-summary {
