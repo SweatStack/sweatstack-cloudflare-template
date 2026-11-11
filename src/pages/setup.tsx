@@ -43,7 +43,7 @@ setupRoutes.get("/setup", (c) => {
       <Card title="1. Create a SweatStack app">
         <ol class="steps">
           <li>
-            Open <a href="https://app.sweatstack.no/settings/api">SweatStack → Settings → API</a> and click <b>New App</b>.
+            Open <a href="https://app.sweatstack.no/applications/new">app.sweatstack.no/applications/new</a> to create a new app.
           </li>
           <li>
             Give it a name, and under <b>Data your app uses</b> tick <b>Activities: read</b>.
@@ -87,7 +87,7 @@ setupRoutes.get("/setup", (c) => {
         </p>
       </Card>
 
-      <Card title="3. Before others can sign in">
+      <Card title="3. When you want others to sign in">
         <p>
           New SweatStack apps are <b>private</b>: only you can sign in. To open it to others, fill in your app's{" "}
           <b>Consent screen</b> tab and <a href="https://docs.sweatstack.no/learn/applications/going-live/">go live</a>. These
@@ -95,12 +95,10 @@ setupRoutes.get("/setup", (c) => {
         </p>
         <CopyField id="privacy-url" label="Privacy policy" value={urls.privacyUrl} />
         <CopyField id="website-url" label="Website" value={urls.origin} />
-        <Banner tone="warn">
-          <p>
-            The <a href="/privacy">privacy policy</a> and <a href="/terms">terms</a> are placeholders. Replace them with your
-            own (<code>src/pages/legal.tsx</code>) before you go live.
-          </p>
-        </Banner>
+        <p class="muted small">
+          The <a href="/privacy">privacy policy</a> and <a href="/terms">terms</a> are placeholders you can edit in{" "}
+          <code>content/</code>. They are your responsibility as the app's operator; the app works with or without them.
+        </p>
       </Card>
     </Layout>,
   );

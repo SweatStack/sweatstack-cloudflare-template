@@ -39,11 +39,13 @@ class TrainingChart extends HTMLElement {
     this.themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
     this.onTheme = () => this.render();
     this.themeQuery.addEventListener("change", this.onTheme);
+    document.addEventListener("themechange", this.onTheme); // the sun/moon toggle
   }
 
   disconnectedCallback() {
     this.resizeObserver?.disconnect();
     this.themeQuery?.removeEventListener("change", this.onTheme);
+    document.removeEventListener("themechange", this.onTheme);
     this.plot?.destroy();
   }
 

@@ -124,11 +124,12 @@ adminRoutes.get("/admin", requireUser, async (c) => {
             )}
           </CheckItem>
 
-          <CheckItem ok={legalPlaceholders.length === 0} title="Privacy policy and terms">
+          <CheckItem ok={legalPlaceholders.length === 0 ? true : null} title="Privacy policy and terms">
             {legalPlaceholders.length > 0 ? (
               <p>
-                Still placeholders: {legalPlaceholders.map((doc, i) => <>{i > 0 && ", "}<a href={doc.path}>{doc.title}</a></>)}. Edit{" "}
-                <code>content/privacy.md</code> and <code>content/terms.md</code> before you go live.
+                Still the template's placeholders: {legalPlaceholders.map((doc, i) => <>{i > 0 && ", "}<a href={doc.path}>{doc.title}</a></>)}. They
+                don't block anything in the app, but as the operator you're responsible for them: edit{" "}
+                <code>content/privacy.md</code> and <code>content/terms.md</code>.
               </p>
             ) : (
               <p class="muted">Your own documents are published.</p>

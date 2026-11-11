@@ -107,18 +107,37 @@ describe("signed in", () => {
     expect((await request("/activities?page=-4&sport=<script>")).status).toBe(200);
   });
 
-  it("renders an activity with stats, the Parquet-backed chart and laps", async () => {
+  it("renders an activity with stats and laps, and its chart as a lazy fragment", async () => {
     const { request, signIn, sweatstack } = testApp();
     await signIn();
     const response = await request("/activities/demo-00");
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Avg heart rate");
-    expect(html).toContain('<training-chart type="line"');
-    expect(html).toContain("Heart rate: average");
     expect(html).toContain("Laps");
-    const dataCall = sweatstack.calls.find((c) => c.url.includes("/data?"))!;
-    expect(new URL(dataCall.url).searchParams.getAll("metrics")).toEqual(["heart_rate", "power", "speed"]);
+    expect(html).toContain('hx-get="/activities/demo-00/chart?metrics=heart_rate,power,speed"');
+    expect(sweatstack.calls.some((c) => c.url.includes("/data?"))).toBe(false); // the page itself never waits for Parquet
+
+    const chart = await (await request("/activities/demo-00/chart?metrics=heart_rate,power,speed", { headers: { "HX-Request": "true" } })).text();
+    expect(chart).toContain('<training-chart type="line"');
+    expect(chart).toContain("Heart rate: average");
+    expect(chart).toContain("Data from Garmin");
+    expect(chart).not.toContain("<html");
+    const params = new URL(sweatstack.calls.find((c) => c.url.includes("/data?"))!.url).searchParams;
+    expect(params.getAll("metrics")).toEqual(["heart_rate", "power", "speed"]);
+    expect(params.get("segmentation_on")).toBe("power"); // AISC: small payloads, cheap to decode
+
+    const unknown = await (await request("/activities/demo-00/chart?metrics=evil,<script>")).text();
+    expect(unknown).toBe("");
+  });
+
+  it("renders pages in the theme chosen with the toggle", async () => {
+    const { request, cookies } = testApp();
+    expect(await (await request("/privacy")).text()).toMatch(/^<html lang="en">/);
+    cookies.set("theme", "dark");
+    expect(await (await request("/privacy")).text()).toMatch(/^<html lang="en" data-theme="dark">/);
+    cookies.set("theme", "<script>");
+    expect(await (await request("/privacy")).text()).toMatch(/^<html lang="en">/);
   });
 
   it("shows a friendly 404 for an unknown activity", async () => {

@@ -201,6 +201,9 @@ svg {
 .js .js-hide {
   display: none;
 }
+html:not(.js) .js-show {
+  display: none;
+}
 
 [hidden] {
   display: none !important;
@@ -252,6 +255,42 @@ svg {
 }
 .brand img {
   border-radius: 8px;
+}
+.topbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* Light/dark toggle: shows a moon in light mode (switch to dark) and a sun in dark mode. */
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.theme-toggle:hover {
+  color: var(--ink);
+}
+.theme-toggle .icon-sun,
+:root[data-theme="dark"] .theme-toggle .icon-moon {
+  display: none;
+}
+:root[data-theme="dark"] .theme-toggle .icon-sun {
+  display: block;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle .icon-moon {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .theme-toggle .icon-sun {
+    display: block;
+  }
 }
 
 /* Main navigation: a bottom tab bar on phones, links in the top bar on wider screens. */

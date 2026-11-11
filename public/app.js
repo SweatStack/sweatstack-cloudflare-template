@@ -185,13 +185,40 @@ if (isIOS && !isStandalone && signedIn && localStorage.getItem("install-hint-dis
   document.body.append(hint);
 }
 
+// --- Light/dark toggle --------------------------------------------------------------------------
+// Remembered in a cookie, so the server renders the next page in the right theme (no flash).
+
+for (const toggle of document.querySelectorAll("[data-theme-toggle]")) {
+  toggle.addEventListener("click", () => {
+    const root = document.documentElement;
+    const current = root.dataset.theme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const next = current === "dark" ? "light" : "dark";
+    root.dataset.theme = next;
+    const secure = location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `theme=${next}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+    document.dispatchEvent(new CustomEvent("themechange"));
+  });
+}
+
+// --- Lazy fragments that fail -----------------------------------------------------------------------
+// If an htmx fragment (like the activity chart) can't load, say so instead of "Loading…" forever.
+
+document.body.addEventListener("htmx:responseError", (event) => replaceSlot(event.detail.elt));
+document.body.addEventListener("htmx:sendError", (event) => replaceSlot(event.detail.elt));
+function replaceSlot(element) {
+  if (!element?.matches?.("[data-chart-slot]")) return;
+  element.innerHTML = "";
+  const message = document.createElement("p");
+  message.className = "muted";
+  message.textContent = "The chart couldn't be loaded right now.";
+  element.append(message);
+}
+
 // --- /design toolbar ---------------------------------------------------------------------------
 
 if (document.querySelector("[data-design-toolbar]")) {
   const params = new URLSearchParams(location.search);
-  const theme = params.get("theme");
   const accent = params.get("accent");
-  if (theme === "dark" || theme === "light") document.documentElement.dataset.theme = theme;
   if (accent && /^#[0-9a-f]{3,8}$/i.test(accent)) document.documentElement.style.setProperty("--accent", accent);
   for (const swatch of document.querySelectorAll("[data-swatch]")) swatch.style.background = swatch.dataset.swatch;
 }

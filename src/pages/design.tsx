@@ -2,7 +2,7 @@
 // demo data (src/fixtures). Change public/app.css, reload, and see everything at once.
 //
 // Open to everyone in local development (localhost); admin-only on a deployed app.
-//   /design                  component gallery (?theme=dark, ?accent=%23e11d48 to try things out)
+//   /design                  component gallery (?accent=%23e11d48 to try an accent; the sun/moon button switches theme)
 //   /design/pages/<name>     a real page with demo data: landing, dashboard, activities, activity, settings, admin, setup
 
 import { Hono, type MiddlewareHandler } from "hono";
@@ -62,9 +62,6 @@ designRoutes.get("/design", designAccess, (c) => {
     <Layout title="Design" user={c.var.user ?? DEMO_SESSION_USER} active="home">
       <PageHeader title="Design workbench" subtitle="Every component, in every state. Edit public/app.css and reload." />
       <div class="design-toolbar" data-design-toolbar>
-        <span class="muted small">Theme</span>
-        <a class="btn btn-secondary btn-small" href="?theme=light">Light</a>
-        <a class="btn btn-secondary btn-small" href="?theme=dark">Dark</a>
         <span class="muted small">Accent</span>
         {["#2563eb", "#e11d48", "#059669", "#7c3aed", "#ea580c"].map((color) => (
           <a class="swatch" href={`?accent=${encodeURIComponent(color)}`} data-swatch={color} aria-label={`Accent ${color}`}></a>

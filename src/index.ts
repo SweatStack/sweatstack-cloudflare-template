@@ -12,6 +12,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { csrf } from "hono/csrf";
+import { getCookie } from "hono/cookie";
 import { secureHeaders } from "hono/secure-headers";
 import { endSession, loadSession } from "./auth/session";
 import { authRoutes } from "./auth/routes";
@@ -60,6 +61,14 @@ export function createApp(deps: Deps) {
     await next();
     // Pages show personal data: never let a browser or proxy cache them.
     if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "private, no-store");
+    // The light/dark choice from the theme toggle (a cookie set by public/app.js), applied server-side so
+    // pages never flash in the wrong theme. No cookie: follow the device setting.
+    const theme = getCookie(c, "theme");
+    if ((theme === "light" || theme === "dark") && c.res.headers.get("content-type")?.startsWith("text/html")) {
+      c.res = new HTMLRewriter()
+        .on("html", { element: (html) => void html.setAttribute("data-theme", theme) })
+        .transform(c.res);
+    }
   });
 
   app.use(

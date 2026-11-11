@@ -62,10 +62,15 @@ export class SweatStackClient {
   /**
    * The timeseries of one activity, decoded from Parquet. Ask only for the metrics you use: it keeps
    * the download and the decoding (Worker CPU time) small.
+   *
+   * `segmentationOn` ("power" or "speed") asks SweatStack for AISC-segmented data: one row per segment
+   * of steady intensity instead of one per second, 20-50x smaller with the shape preserved. Use it for
+   * charts and overviews; leave it out when you need every sample (for example, your own calculations).
+   * https://docs.sweatstack.no/learn/data/activities/#activity-data
    */
-  async getActivityData(id: string, metrics: readonly Metric[]): Promise<Timeseries> {
+  async getActivityData(id: string, metrics: readonly Metric[], options: { segmentationOn?: "power" | "speed" } = {}): Promise<Timeseries> {
     const response = await this.request(`/api/v1/activities/${encodeURIComponent(id)}/data`, {
-      query: { metrics },
+      query: { metrics, segmentation_on: options.segmentationOn },
       accept: "application/vnd.apache.parquet, application/octet-stream",
     });
     const attribution = response.headers.get("SweatStack-Attribution");

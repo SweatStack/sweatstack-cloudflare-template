@@ -39,6 +39,7 @@ export const Layout: FC<LayoutProps> = ({ title, user, active, children }) => (
           <img src="/icons/logo.svg" alt="" width="32" height="32" />
           <span>{APP.name}</span>
         </a>
+        <div class="topbar-end">
         {user && (
           <nav class="tabs" aria-label="Main">
             <NavLink href="/" icon="home" label="Home" current={active === "home"} />
@@ -47,6 +48,12 @@ export const Layout: FC<LayoutProps> = ({ title, user, active, children }) => (
             {user.isAdmin && <NavLink href="/admin" icon="shield" label="Admin" current={active === "admin"} />}
           </nav>
         )}
+        {/* Light/dark switch (public/app.js). The choice is a cookie; src/index.ts applies it server-side. */}
+        <button type="button" class="theme-toggle js-show" data-theme-toggle aria-label="Switch between light and dark mode">
+          <Icon name="moon" class="icon-moon" />
+          <Icon name="sun" class="icon-sun" />
+        </button>
+        </div>
       </header>
       <main id="main" class={user ? "page has-tabs" : "page"}>
         {children}

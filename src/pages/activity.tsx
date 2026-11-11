@@ -1,5 +1,5 @@
 // /activities/:id: one activity. Summary stats as tiles, a timeseries chart from the Parquet data
-// (heart rate, power, speed: whichever the activity has), and laps.
+// (heart rate, power, speed: whichever the activity has, loaded as an htmx fragment), and laps.
 
 import { Hono } from "hono";
 import type { FC } from "hono/jsx";
@@ -33,37 +33,60 @@ const CHART_POINTS = 600;
 
 activityRoutes.get("/activities/:id", requireUser, async (c) => {
   const id = c.req.param("id");
-  const sweatstack = c.var.sweatstack();
-  const activity = await sweatstack.getActivity(id);
-
-  const metrics = CHART_METRICS.filter((m) => activity.metrics.includes(m.metric)).map((m) => m.metric);
-  let timeseries: Timeseries | null = null;
-  let chartError = false;
-  if (metrics.length > 0) {
-    try {
-      timeseries = await sweatstack.getActivityData(id, metrics);
-    } catch (error) {
-      // The rest of the page is still useful without the chart.
-      chartError = true;
-      console.error(JSON.stringify({ level: "error", requestId: c.var.requestId, message: "Activity data failed", error: String(error) }));
-    }
-  }
+  const activity = await c.var.sweatstack().getActivity(id);
+  const metrics = chartMetrics(activity.metrics);
 
   return c.html(
     <Layout title={activityTitle(activity)} user={c.var.user} active="activities">
       <PageHeader title={activityTitle(activity)} subtitle={<ActivityHeading activity={activity} />} back={{ href: "/activities", label: "Activities" }} />
       <Stats activity={activity} />
       <Attribution text={activity.attribution} />
-      {timeseries && <TimeseriesChart timeseries={timeseries} sport={activity.sport} />}
-      {chartError && (
-        <Card>
-          <p class="muted">The chart couldn't be loaded right now.</p>
-        </Card>
+      {metrics.length > 0 && (
+        <>
+          <SectionLabel>Over time</SectionLabel>
+          {/* The chart loads as a separate htmx fragment: the page shows at once, and a slow or failed
+              chart never takes the rest of the page down with it. */}
+          <div
+            class="card chart-slot"
+            hx-get={`/activities/${encodeURIComponent(id)}/chart?metrics=${metrics.join(",")}`}
+            hx-trigger="load"
+            hx-swap="outerHTML"
+            data-chart-slot
+          >
+            <p class="muted">Loading chart…</p>
+          </div>
+        </>
       )}
       <Laps laps={activity.laps ?? []} sport={activity.sport} />
     </Layout>,
   );
 });
+
+/** Fragment: the timeseries chart for one activity, from its Parquet data. */
+activityRoutes.get("/activities/:id/chart", requireUser, async (c) => {
+  const id = c.req.param("id");
+  const metrics = chartMetrics((c.req.query("metrics") ?? "").split(","));
+  if (metrics.length === 0) return c.html(<></>);
+
+  // Segmented (AISC) data is 20-50x smaller than per-second data: quick to download and to decode,
+  // which keeps long activities well within the Workers CPU limit. It needs power or speed to segment on.
+  const segmentationOn = metrics.includes("power") ? "power" : metrics.includes("speed") ? "speed" : undefined;
+  try {
+    const timeseries = await c.var.sweatstack().getActivityData(id, metrics, segmentationOn ? { segmentationOn } : {});
+    return c.html(<TimeseriesChart timeseries={timeseries} />);
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", requestId: c.var.requestId, message: "Activity data failed", error: String(error) }));
+    return c.html(
+      <div class="card">
+        <p class="muted">The chart couldn't be loaded right now.</p>
+      </div>,
+    );
+  }
+});
+
+function chartMetrics(available: readonly string[]): Metric[] {
+  return CHART_METRICS.filter((m) => available.includes(m.metric)).map((m) => m.metric);
+}
 
 const Stats: FC<{ activity: ActivityDetails }> = ({ activity }) => {
   const s = activity.summary;
@@ -82,7 +105,7 @@ const Stats: FC<{ activity: ActivityDetails }> = ({ activity }) => {
   );
 };
 
-const TimeseriesChart: FC<{ timeseries: Timeseries; sport: string }> = ({ timeseries }) => {
+const TimeseriesChart: FC<{ timeseries: Timeseries }> = ({ timeseries }) => {
   const series = CHART_METRICS.flatMap(({ metric, label, unit, color }) => {
     const values = timeseries.columns[metric];
     if (!values) return [];
@@ -92,22 +115,19 @@ const TimeseriesChart: FC<{ timeseries: Timeseries; sport: string }> = ({ timese
     const mean = y.reduce((sum, v) => sum + v, 0) / y.length;
     return [{ label, unit, color, x: x.map((t) => Math.round(t)), values: y.map((v) => Math.round(v * 10) / 10), mean }];
   });
-  if (series.length === 0) return null;
+  if (series.length === 0) return <div class="card"><p class="muted">No chartable data for this activity.</p></div>;
 
   const summary = series.map((s) => `${s.label}: average ${Math.round(s.mean)} ${s.unit}`).join(". ");
   return (
-    <>
-      <SectionLabel>Over time</SectionLabel>
-      <Card>
-        <Chart
-          type="line"
-          label={`${series.map((s) => s.label).join(", ")} over the activity`}
-          summary={`${summary}.`}
-          data={{ series: series.map(({ mean: _mean, ...s }) => s) }}
-        />
-        <Attribution text={timeseries.attribution} />
-      </Card>
-    </>
+    <Card>
+      <Chart
+        type="line"
+        label={`${series.map((s) => s.label).join(", ")} over the activity`}
+        summary={`${summary}.`}
+        data={{ series: series.map(({ mean: _mean, ...s }) => s) }}
+      />
+      <Attribution text={timeseries.attribution} />
+    </Card>
   );
 };
 
