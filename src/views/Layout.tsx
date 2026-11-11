@@ -3,8 +3,9 @@
 import type { FC, PropsWithChildren } from "hono/jsx";
 import { APP } from "../app.config";
 import type { SessionUser } from "../env";
-import { Icon } from "./components";
+import { Icon, type IconName } from "./components";
 
+// Adding a page to the nav? Add it here, and a <NavLink> below.
 export type NavItem = "home" | "activities" | "settings" | "admin";
 
 type LayoutProps = PropsWithChildren<{
@@ -65,7 +66,7 @@ export const Layout: FC<LayoutProps> = ({ title, user, active, children }) => (
   </html>
 );
 
-const NavLink: FC<{ href: string; icon: "home" | "list" | "settings" | "shield"; label: string; current: boolean }> = ({
+const NavLink: FC<{ href: string; icon: IconName; label: string; current: boolean }> = ({
   href,
   icon,
   label,

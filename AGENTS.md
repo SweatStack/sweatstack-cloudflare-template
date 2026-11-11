@@ -20,7 +20,8 @@ notifications driven by SweatStack webhooks. One Worker (Hono) and one D1 databa
 - **No inline `<script>`, no `style="..."`, no `hx-on`.** The Content-Security-Policy blocks them. Behaviour goes in
   `public/app.js`; styling goes in `public/app.css` (use the tokens at the top).
 - **Every htmx interaction must also work as a plain link or form** (except charts and push, which need JS).
-- **Show attribution next to SweatStack data** (`<Attribution text={activity.attribution} />`). Garmin requires it.
+- **Show attribution next to SweatStack data** whenever the response carries it (`attribution` field, or
+  `Timeseries.attribution`): `<Attribution text={activity.attribution} />`. Garmin requires it.
 - Treat every `summary` field as nullable. Show local times from `start_local`; compare and sort on `start`.
 - Keep files small, with one concern each. Prefer explicit code over abstractions.
 
@@ -33,6 +34,9 @@ notifications driven by SweatStack webhooks. One Worker (Hono) and one D1 databa
 | `src/pages/*.tsx` | One file per page (+ its fragments): `home`, `activities`, `activity`, `settings`, `admin`, `setup`, `legal`, `design`, `errors` |
 | `src/views/components.tsx` | Shared components (Card, StatTile, Chart, Banner, …). `Layout.tsx`: the page shell |
 | `src/sweatstack/` | `client.ts` (API), `types.ts`, `oauth.ts`, `http.ts` (errors, retries), `parquet.ts` |
+| `src/config.ts`, `src/secrets.ts`, `src/state.ts` | Worker secrets → config; self-generated keys; small facts in D1 |
+| `src/<feature>.ts` | Put a non-page module (e.g. D1 helpers for a new table) at this level, like `state.ts` |
+| `src/lib/` | Pure helpers: `crypto.ts`, `format.ts` (units, dates, sport names), `series.ts` (downsampling, weekly totals) |
 | `src/auth/` | Sign-in routes, session cookie, token store with refresh-token rotation |
 | `src/push/`, `src/webhooks/` | Web Push (send to a user's devices), SweatStack webhook receiver |
 | `src/fixtures/` | Demo data: used by `/design` and by the tests |
@@ -45,24 +49,42 @@ notifications driven by SweatStack webhooks. One Worker (Hono) and one D1 databa
 
 **Add a page.** Copy `src/pages/settings.tsx` (simple) or `src/pages/activities.tsx` (data + query params). Export a
 `Hono<AppEnv>` router, protect it with `requireUser`, render `<Layout title user active>`, and mount it in
-`src/index.ts` with `app.route("/", yourRoutes)`. Add a nav link in `src/views/Layout.tsx` if it needs one. Add a
-preview to `DEMO_PAGES` in `src/pages/design.tsx` and a route test in `test/routes.test.ts`.
+`src/index.ts` with `app.route("/", yourRoutes)`. For a nav link, add the page to `NavItem` and a `<NavLink>` in
+`src/views/Layout.tsx` (icons: `ICONS` in `components.tsx`, stroke paths on a 24px grid). Add a preview to `DEMO_PAGES` in
+`src/pages/design.tsx` (the path may include a query string, e.g. to preview an error state), add it to the page list in
+the `/design` route test, and add a route test.
 
 **Add an htmx fragment.** Canonical: `/partials/last-activity` in `src/pages/home.tsx` (refreshes on `app:visible`) and
 `/activities/:id/chart` in `src/pages/activity.tsx` (lazy load with `hx-trigger="load"`). Return a component without
 `<Layout>`. Trigger on custom events (`hx-trigger="my-event from:body"`) dispatched from `public/app.js`, not on filter
-expressions: those need eval, which the CSP blocks.
+expressions: those need eval, which the CSP blocks. A form that htmx enhances answers both ways:
 
-**Call a new SweatStack endpoint.** Find it in openapi.json, add a method to `SweatStackClient` and the response type to
-`types.ts`, then use it from a route:
+```tsx
+// <form method="post" action="/things/1/toggle" hx-post="/things/1/toggle" hx-swap="outerHTML">…</form>
+routes.post("/things/:id/toggle", requireUser, async (c) => {
+  const state = await toggleThing(c.env.DB, c.var.user!.id, c.req.param("id"));
+  if (c.req.header("HX-Request")) return c.html(<ToggleForm id={c.req.param("id")} on={state} />); // htmx: the new fragment
+  return c.redirect(`/things/${c.req.param("id")}`, 303); // plain form: back to the page
+});
+```
+
+**Call a new SweatStack endpoint.** Find it in openapi.json: check required parameters and the response schema. Add a
+method to `SweatStackClient` and the response type to `types.ts`, then use it from a route:
 
 ```ts
-// src/sweatstack/client.ts
-getHeartRateZones(): Promise<HeartRateZones> {
-  return this.json("/api/v1/profile/zones/heart_rate");
+// src/sweatstack/client.ts: GET /api/v1/profile/zones/heart_rate needs `sport` (a root sport, e.g. "running")
+getHeartRateZones(sport: string): Promise<HeartRateZones> {
+  return this.json("/api/v1/profile/zones/heart_rate", { sport });
 }
-// src/pages/your-page.tsx
-const zones = await c.var.sweatstack().getHeartRateZones();
+// src/pages/zones.tsx
+try {
+  zones = await c.var.sweatstack().getHeartRateZones("running");
+} catch (error) {
+  // Expected states come back as errors with a `code` (problem+json), e.g. "missing_resting_hr" for a new user.
+  // Show a helpful message for those; let anything else reach the global error page.
+  if (!(error instanceof SweatStackError && error.code)) throw error;
+  missingReason = error.code;
+}
 ```
 
 Add the endpoint to `demoSweatStackFetch` in `src/fixtures/index.ts` so `/design` and the tests can render it.
@@ -80,19 +102,27 @@ Bars: `{ labels: string[], series: [{ label, unit, color, values }] }`. Downsamp
 `src/lib/series.ts`. Don't add a second chart library.
 
 **Add a D1 table.** Create `migrations/0002_<name>.sql` (never edit a migration that has been deployed). Run
-`npm run db:migrate` locally; `npm run deploy` applies it in production. Use `c.env.DB.prepare(...).bind(...)`; always
-bind values, never build SQL strings from input. Store times as epoch milliseconds.
+`npm run db:migrate` locally; `npm run deploy` applies it in production; tests apply all migrations automatically. Use
+`c.env.DB.prepare(...).bind(...)`; always bind values, never build SQL strings from input. Store times as epoch
+milliseconds. **Per-user data must have `user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE`**: Disconnect
+promises to delete everything the app stores about a user. Put the queries in `src/<feature>.ts` (see `src/state.ts`).
 
 **Send a different push notification.** Call `sendToUser(db, fetch, secrets, origin, userId, { title, body, url, tag })`
 from `src/push/notify.ts`. To react to another webhook event, add a `case` in `handleEvent()` in
 `src/webhooks/sweatstack.ts` (event types: `activity_created|updated|deleted`, `test_*`, `source_*`). Return quickly:
-the receiver already acknowledges first and works in `waitUntil`.
+the receiver already acknowledges first and works in `waitUntil`. To test what a notification says, subscribe with
+`subscribeForTest(userId)` and read `await pushMessages(sweatstack.calls)` (see `test/webhooks.test.ts`).
 
 **Add a scope.** Add it to `APP.scopes` in `src/app.config.ts` (e.g. `wellness:read`), and tick it, with a purpose, on
 the app's Consent screen tab in SweatStack. Existing users grant it the next time they sign in.
 
 **Change the look.** Edit the tokens at the top of `public/app.css`; add component styles below them. Check `/design`
-(every component and page, light and dark; `?accent=%23e11d48` tries an accent).
+(every component and page; the sun/moon button switches theme; `?accent=%23e11d48` tries an accent). Previews only route
+`hx-get` fragments to demo data: forms and `hx-post` in a preview hit the real routes.
+
+**Write tests.** `testApp()` from `test/helpers.ts` gives `request()` (keeps cookies), `signIn()` and the fake SweatStack's
+`calls`. Make one endpoint fail with `testApp({ onRequest: (r) => … })`. Demo data is pinned to `TEST_NOW` (a Wednesday;
+`demo-00` is the newest activity). Rendered HTML escapes `'` as `&#39;`: assert on text without apostrophes.
 
 ## SweatStack facts
 

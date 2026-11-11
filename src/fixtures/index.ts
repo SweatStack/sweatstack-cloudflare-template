@@ -47,7 +47,7 @@ export function demoActivities(now = new Date(), weeks = 13): ActivitySummary[] 
     const start = new Date(new Date(`${startLocal}Z`).getTime() - 3600_000); // athlete is at UTC+1
     const distance = template.km === null ? null : Math.round(template.km * 1000 * variation);
     activities.push({
-      id: `demo-${pad(daysAgo)}`,
+      id: `demo-${pad(activities.length)}`, // demo-00 is always the newest
       sport: template.sport,
       start: start.toISOString().replace(".000", ""),
       end: new Date(start.getTime() + seconds * 1000).toISOString().replace(".000", ""),

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { base64urlDecode, base64urlEncode, concatBytes, utf8 } from "../src/lib/crypto";
+import { base64urlDecode, base64urlEncode, utf8 } from "../src/lib/crypto";
 import { encryptPayload, isAllowedEndpoint, vapidJwt } from "../src/push/webpush";
+import { decryptPush, ecdhKeyPair } from "./helpers";
 
 // RFC 8291, Appendix A: https://www.rfc-editor.org/rfc/rfc8291#appendix-A
 const RFC = {
@@ -13,35 +14,6 @@ const RFC = {
   authSecret: "BTBZMqHH6r4Tts7J_aSIgg",
   body: "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN",
 };
-
-async function ecdhKeyPair(publicB64: string, privateB64: string): Promise<CryptoKeyPair> {
-  const raw = base64urlDecode(publicB64);
-  const jwk = { kty: "EC", crv: "P-256", x: base64urlEncode(raw.slice(1, 33)), y: base64urlEncode(raw.slice(33, 65)), d: privateB64, ext: true };
-  const privateKey = await crypto.subtle.importKey("jwk", jwk, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
-  const publicKey = await crypto.subtle.importKey("raw", raw, { name: "ECDH", namedCurve: "P-256" }, true, []);
-  return { privateKey, publicKey };
-}
-
-/** The browser's side of RFC 8291, so we can check what we send decrypts. */
-async function decrypt(body: Uint8Array<ArrayBuffer>, ua: CryptoKeyPair, authSecret: Uint8Array<ArrayBuffer>): Promise<string> {
-  const salt = body.slice(0, 16);
-  const idLength = body[20]!;
-  const asPublic = body.slice(21, 21 + idLength);
-  const ciphertext = body.slice(21 + idLength);
-  const uaPublic = new Uint8Array((await crypto.subtle.exportKey("raw", ua.publicKey)) as ArrayBuffer);
-  const asKey = await crypto.subtle.importKey("raw", asPublic, { name: "ECDH", namedCurve: "P-256" }, false, []);
-  const ecdh = { name: "ECDH", public: asKey } as unknown as SubtleCryptoDeriveKeyAlgorithm;
-  const secret = new Uint8Array(await crypto.subtle.deriveBits(ecdh, ua.privateKey, 256));
-  const hkdf = async (s: Uint8Array<ArrayBuffer>, ikm: Uint8Array<ArrayBuffer>, info: Uint8Array<ArrayBuffer>, n: number) =>
-    new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: s, info }, await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]), n * 8));
-  const ikm = await hkdf(authSecret, secret, concatBytes(utf8("WebPush: info\0"), uaPublic, asPublic), 32);
-  const cek = await hkdf(salt, ikm, utf8("Content-Encoding: aes128gcm\0"), 16);
-  const nonce = await hkdf(salt, ikm, utf8("Content-Encoding: nonce\0"), 12);
-  const key = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["decrypt"]);
-  const plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, key, ciphertext));
-  expect(plain.at(-1)).toBe(2); // last-record delimiter
-  return new TextDecoder().decode(plain.slice(0, -1));
-}
 
 describe("Web Push encryption (RFC 8291)", () => {
   it("matches the RFC's test vector byte for byte", async () => {
@@ -58,7 +30,7 @@ describe("Web Push encryption (RFC 8291)", () => {
     const auth = crypto.getRandomValues(new Uint8Array(16));
     const message = JSON.stringify({ title: "Morning ride", body: "42.1 km · 1:32:10", url: "/activities/abc" });
     const body = await encryptPayload(utf8(message), uaPublic, auth);
-    expect(await decrypt(body, ua, auth)).toBe(message);
+    expect(await decryptPush(body, ua, auth)).toBe(message);
   });
 });
 

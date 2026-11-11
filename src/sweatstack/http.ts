@@ -11,7 +11,10 @@ export class SweatStackError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    /** RFC 6749 error code for OAuth errors, e.g. "invalid_client", "invalid_grant". */
+    /**
+     * Machine-readable reason: the OAuth error (RFC 6749, e.g. "invalid_grant") or the `code` of an
+     * RFC 7807 problem+json response (e.g. "missing_resting_hr"). Check it to handle expected states.
+     */
     readonly code?: string,
   ) {
     super(message);
@@ -72,9 +75,9 @@ export async function errorFrom(response: Response, what: string): Promise<Sweat
   let detail = "";
   let code: string | undefined;
   try {
-    const body = (await response.json()) as { error?: string; error_description?: string; detail?: unknown };
-    code = body.error;
-    detail = body.error_description ?? (typeof body.detail === "string" ? body.detail : "") ?? "";
+    const body = (await response.json()) as { error?: string; error_description?: string; code?: string; title?: string; detail?: unknown };
+    code = body.error ?? body.code;
+    detail = body.error_description ?? (typeof body.detail === "string" ? body.detail : body.title) ?? "";
   } catch {
     // not JSON
   }

@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { base64Decode, base64Encode, hmacSha256, utf8 } from "../src/lib/crypto";
 import { verifyWebhook } from "../src/webhooks/sweatstack";
-import { testApp } from "./helpers";
+import { pushMessages, subscribeForTest, testApp } from "./helpers";
 
 const SECRET = env.SWEATSTACK_WEBHOOK_SECRET;
 
@@ -22,16 +22,7 @@ async function signedDelivery(event: Record<string, unknown>, { id = crypto.rand
   };
 }
 
-const subscribe = (userId: string) =>
-  env.DB.prepare("INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth, created_at) VALUES (?, ?, ?, ?, 0)")
-    .bind(
-      `https://fcm.googleapis.com/fcm/send/${userId}`,
-      userId,
-      // A real P-256 public key and auth secret are needed to encrypt: take them from the RFC 8291 vector.
-      "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",
-      "BTBZMqHH6r4Tts7J_aSIgg",
-    )
-    .run();
+const subscribe = (userId: string) => subscribeForTest(userId);
 
 describe("webhook signature verification", () => {
   it("accepts a valid Standard Webhooks signature and rejects the rest", async () => {
@@ -68,6 +59,9 @@ describe("POST /webhooks/sweatstack", () => {
     expect(pushes).toHaveLength(1);
     expect(pushes[0]!.headers.get("content-encoding")).toBe("aes128gcm");
     expect(pushes[0]!.headers.get("authorization")).toMatch(/^vapid t=[\w-]+\.[\w-]+\.[\w-]+, k=[\w-]+$/);
+
+    const [message] = await pushMessages(sweatstack.calls);
+    expect(message).toEqual({ title: "Evening ride", body: expect.stringMatching(/km · \d+:\d{2}:\d{2} · Cycling \(road\)$/), url: "/activities/demo-00", tag: "activity-demo-00" });
 
     const event = await env.DB.prepare("SELECT status, detail FROM webhook_events").first<{ status: string; detail: string }>();
     expect(event).toEqual({ status: "notified", detail: "sent 1, removed 0, failed 0" });
