@@ -141,7 +141,7 @@ the app's Consent screen tab in SweatStack. Existing users grant it the next tim
 
 ```sh
 npm run dev          # local app on http://localhost:8787 (needs .dev.vars, see .dev.vars.example)
-npm run typecheck    # TypeScript + check worker-configuration.d.ts is current (npm run types regenerates it)
+npm run typecheck    # regenerates worker-configuration.d.ts (bindings + runtime types), then tsc; commit the file if it changed
 npm test             # all tests, in the Workers runtime
 npm run db:migrate   # apply migrations to the local database
 npm run deploy       # migrate production and deploy

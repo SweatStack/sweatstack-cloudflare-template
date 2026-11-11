@@ -79,7 +79,7 @@ app's settings stay tight.
 |---|---|
 | `npm run dev` | Run the app locally (applies database migrations first) |
 | `npm test` | Tests, in the real Workers runtime |
-| `npm run typecheck` | TypeScript, and a check that `worker-configuration.d.ts` matches `wrangler.jsonc` |
+| `npm run typecheck` | Regenerates `worker-configuration.d.ts` from `wrangler.jsonc`, then checks TypeScript |
 | `npm run deploy` | Apply migrations to the production database and deploy |
 | `npm run db:migrate` | Apply migrations to the local database |
 | `npm run webhook:simulate` | Send a signed test webhook to your local app |
