@@ -11,6 +11,9 @@ export const APP = {
   // When you add one, also tick it (with a purpose) on your app's Consent screen tab in SweatStack.
   scopes: ["openid", "profile", "activities:read", "offline_access"],
 
+  // Under "Sign in with SweatStack": name the accounts your users already have (SweatStack's brand guidance).
+  signInSubtitle: "Use your Intervals.icu or Wahoo account",
+
   // Activities per page on /activities.
   pageSize: 20,
 

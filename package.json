@@ -32,5 +32,27 @@
   "allowScripts": {
     "esbuild": true,
     "workerd": true
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "cloudflare": {
+    "bindings": {
+      "SWEATSTACK_CLIENT_ID": {
+        "description": "Your SweatStack app's **Client ID**. Create an app at [app.sweatstack.no/applications/new](https://app.sweatstack.no/applications/new) and copy it from the OAuth tab. You can also leave this empty and follow the steps the app shows you."
+      },
+      "SWEATSTACK_CLIENT_SECRET": {
+        "description": "A **client secret** from your SweatStack app's OAuth tab (Client secrets → Create). It is shown only once."
+      },
+      "ADMIN_USER_IDS": {
+        "description": "Optional. Your SweatStack user id, for the Admin page. Leave empty: the app shows your id on Settings after you sign in."
+      },
+      "SWEATSTACK_WEBHOOK_SECRET": {
+        "description": "Optional, for push notifications. Leave empty for now: the app's Admin page explains how to set up webhooks."
+      },
+      "DB": {
+        "description": "Stores signed-in users (with encrypted tokens), push subscriptions and the webhook log. Created for you."
+      }
+    }
   }
 }

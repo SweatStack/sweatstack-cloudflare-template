@@ -2,6 +2,7 @@
 // See them all, in every state, at /design.
 
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
+import { APP } from "../app.config";
 import { activityTitle, formatDate, formatDistance, formatDuration, formatSport, formatTime, parseDuration, sportRoot } from "../lib/format";
 import type { ActivitySummary } from "../sweatstack/types";
 
@@ -199,7 +200,7 @@ export const SignInButton: FC<{ next?: string }> = ({ next }) => (
     <img src="/brand/sweatstack-mark.svg" alt="" width="32" height="32" />
     <span>
       <span class="signin-label">Sign in with SweatStack</span>
-      <span class="signin-subtitle">Use your Intervals.icu or Wahoo account</span>
+      <span class="signin-subtitle">{APP.signInSubtitle}</span>
     </span>
   </a>
 );
