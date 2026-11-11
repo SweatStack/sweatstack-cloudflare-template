@@ -1,10 +1,10 @@
 // Service worker: offline fallback page, push notifications, and opening the app from a notification.
 //
 // Caching is deliberately minimal. Pages contain personal data and are never cached: when offline,
-// a navigation shows /offline.html. Static files are served from cache and refreshed in the background
-// (stale-while-revalidate), so a deploy reaches users on their next visit without version bumps.
+// a navigation shows /offline.html. Static files (CSS, JS, icons) are network-first: always the deployed
+// version, so new HTML never meets old CSS after a deploy. The cache is only the offline fallback.
 
-const CACHE = "static-v1";
+const CACHE = "static-v2";
 const PRECACHE = [
   "/offline.html",
   "/app.css",
@@ -43,20 +43,15 @@ self.addEventListener("fetch", (event) => {
 
   if (isStatic(url) && url.pathname !== "/sw.js") {
     event.respondWith(
-      caches.open(CACHE).then(async (cache) => {
-        const cached = await cache.match(request);
-        const network = fetch(request)
-          .then((response) => {
-            if (response.ok) cache.put(request, response.clone());
-            return response;
-          })
-          .catch(() => cached);
-        if (cached) {
-          event.waitUntil(network);
-          return cached;
-        }
-        return network;
-      }),
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            event.waitUntil(caches.open(CACHE).then((cache) => cache.put(request, copy)));
+          }
+          return response;
+        })
+        .catch(async () => (await caches.match(request)) ?? Response.error()),
     );
   }
 });

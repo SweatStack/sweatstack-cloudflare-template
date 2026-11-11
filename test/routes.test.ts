@@ -24,6 +24,12 @@ describe("before setup", () => {
     for (const path of ["/privacy", "/terms", "/healthz"]) expect((await request(path)).status, path).toBe(200);
   });
 
+  it("makes htmx fragment requests navigate to /setup instead of swapping it in", async () => {
+    const { request } = testApp({ env: { SWEATSTACK_CLIENT_ID: "" } });
+    const response = await request("/activities/x/chart?metrics=power", { headers: { "HX-Request": "true" } });
+    expect(response.headers.get("HX-Redirect")).toBe("/setup");
+  });
+
   it("treats a missing secret alone as incomplete", async () => {
     const { request } = testApp({ env: { SWEATSTACK_CLIENT_SECRET: "  " } });
     expect((await request("/")).headers.get("location")).toBe("/setup");
@@ -218,6 +224,15 @@ describe("design workbench", () => {
     for (const page of ["landing", "dashboard", "activities", "activity", "settings", "admin", "setup", "privacy"]) {
       expect((await request(`/design/pages/${page}`)).status, page).toBe(200);
     }
+  });
+
+  it("serves a demo page's htmx fragments from demo data too", async () => {
+    const { request } = testApp();
+    const page = await (await request("/design/pages/activity")).text();
+    const fragment = /hx-get="(\/design\/fragment\/activities\/[^"]+)"/.exec(page)?.[1];
+    expect(fragment).toBeDefined();
+    const chart = await (await request(fragment!.replaceAll("&amp;", "&"), { headers: { "HX-Request": "true" } })).text();
+    expect(chart).toContain('<training-chart type="line"');
   });
 
   it("is hidden on a deployed app for anyone but admins", async () => {

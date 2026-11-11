@@ -125,19 +125,32 @@ export function createApp(deps: Deps) {
   app.route("/", setupRoutes);
   app.route("/", legalRoutes);
   app.route("/", designRoutes);
-  app.get("/design/pages/:name", designAccess, (c) => {
+  app.get("/design/pages/:name", designAccess, async (c) => {
     const page = DEMO_PAGES[c.req.param("name")];
     if (!page) return c.notFound();
     const path = page.path.replace(":demo", encodeURIComponent(demoActivities()[0]!.id));
     const target = new Request(new URL(path, c.req.url), { headers: c.req.raw.headers });
     demoRequests.set(target, page);
-    return app.fetch(target, c.env, c.executionCtx);
+    return withDemoFragments(await app.fetch(target, c.env, c.executionCtx));
+  });
+  // htmx fragments inside a demo page (lazy chart, last-activity refresh) also come from demo data.
+  app.get("/design/fragment/*", designAccess, async (c) => {
+    const url = new URL(c.req.url);
+    const target = new Request(new URL(url.pathname.replace("/design/fragment", "") + url.search, c.req.url), { headers: c.req.raw.headers });
+    demoRequests.set(target, { path: target.url, signedIn: true });
+    return withDemoFragments(await app.fetch(target, c.env, c.executionCtx));
   });
 
   app.use(async (c, next) => {
     const path = new URL(c.req.url).pathname;
     const open = OPEN_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
-    if (c.var.config.missing.length > 0 && !open) return c.redirect("/setup");
+    if (c.var.config.missing.length > 0 && !open) {
+      if (c.req.header("HX-Request")) {
+        c.header("HX-Redirect", "/setup"); // a fragment request: navigate the whole page instead of swapping
+        return c.body(null, 401);
+      }
+      return c.redirect("/setup");
+    }
     await next();
   });
 
@@ -194,6 +207,18 @@ export function createApp(deps: Deps) {
   });
 
   return app;
+}
+
+/** Points a demo page's htmx requests (hx-get="/...") at /design/fragment/..., so they use demo data too. */
+function withDemoFragments(response: Response): Response {
+  return new HTMLRewriter()
+    .on("[hx-get]", {
+      element: (element) => {
+        const target = element.getAttribute("hx-get");
+        if (target?.startsWith("/")) element.setAttribute("hx-get", `/design/fragment${target}`);
+      },
+    })
+    .transform(response);
 }
 
 /** One structured log line per error. Shown in the Cloudflare dashboard (Workers → Logs). */
