@@ -30,6 +30,7 @@
   --ok: #15803d;
   --warn: #a15c00;
   --danger: #c0262d;
+  --on-danger: #ffffff;
   --info: #1d4ed8;
 
   /* Metrics: the same colour for a metric everywhere (tiles, charts). */
@@ -71,6 +72,7 @@
     --ok: #4ade80;
     --warn: #fbbf24;
     --danger: #ff7a7f;
+    --on-danger: #1f0607;
     --info: #7aa2ff;
     --hr: #ff6b75;
     --power: #b597ff;
@@ -93,6 +95,7 @@
   --ok: #4ade80;
   --warn: #fbbf24;
   --danger: #ff7a7f;
+  --on-danger: #1f0607;
   --info: #7aa2ff;
   --hr: #ff6b75;
   --power: #b597ff;
@@ -557,7 +560,7 @@ html:not(.js) .js-show {
 }
 .btn-danger {
   background: var(--danger);
-  color: #fff;
+  color: var(--on-danger);
 }
 .btn-small {
   min-height: 36px;
@@ -860,6 +863,9 @@ select {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: var(--s3);
+}
+.pager > :first-child {
+  justify-self: start;
 }
 .pager > :last-child {
   justify-self: end;

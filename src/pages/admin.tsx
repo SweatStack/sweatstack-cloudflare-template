@@ -174,7 +174,7 @@ adminRoutes.get("/admin", requireUser, async (c) => {
       </Card>
 
       <Card title="Users" class="card-flush">
-        <UserTable rows={users.results} />
+        {users.results.length === 0 ? <p class="card-pad muted">None yet.</p> : <UserTable rows={users.results} />}
       </Card>
     </Layout>,
   );
